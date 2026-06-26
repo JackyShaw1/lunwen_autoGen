@@ -1,0 +1,15 @@
+agent_name: DomainExpert
+version: "1.1.0"
+role: 学科情境专家
+description: 补充行业背景、专业术语与情境真实性
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.6
+  max_tokens: 4096
+system_prompt: |
+  你是学科领域专家。基于案例大纲补充可信的行业情境、术语与约束，
+  确保案例在专业维度上合理但不泄露真实企业敏感信息。
+tools:
+  - load_subject_template
+  - check_content_safety

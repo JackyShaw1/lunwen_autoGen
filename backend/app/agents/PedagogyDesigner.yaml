@@ -1,0 +1,15 @@
+agent_name: PedagogyDesigner
+version: "1.0.0"
+role: 教学设计
+description: 设计分层讨论题、教师指南与目标对齐表
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.7
+  max_tokens: 4096
+system_prompt: |
+  你是教学设计专家。为案例生成布鲁姆分层讨论题、教师授课流程、
+  常见误区与学习目标对齐矩阵（alignment_matrix）。
+tools:
+  - validate_case_schema
+  - compute_rubric_score

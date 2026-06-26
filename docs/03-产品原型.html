@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseAutoGenSystem - 教学案例自动生成系统原型</title>
+  <style>
+    :root {
+      --primary: #0d9488;
+      --primary-dark: #0f766e;
+      --primary-light: #ccfbf1;
+      --accent: #2563eb;
+      --success: #16a34a;
+      --warning: #d97706;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-900: #111827;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--gray-50); color: var(--gray-900); line-height: 1.5; }
+
+    .proto-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: #134e4a; color: white; padding: 8px 16px; display: flex; align-items: center; gap: 12px; font-size: 13px; }
+    .proto-nav .logo { font-weight: 700; color: #5eead4; }
+    .proto-nav .page-tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+    .proto-nav .page-tab { padding: 6px 12px; border-radius: 6px; cursor: pointer; background: transparent; border: none; color: #99f6e4; font-size: 12px; white-space: nowrap; }
+    .proto-nav .page-tab:hover { background: rgba(255,255,255,0.1); color: white; }
+    .proto-nav .page-tab.active { background: var(--primary); color: white; }
+    .proto-badge { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+
+    .page { display: none; padding-top: 48px; min-height: 100vh; }
+    .page.active { display: block; }
+
+    .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline { background: white; color: var(--gray-700); border: 1px solid var(--gray-300); }
+    .btn-ghost { background: transparent; color: var(--gray-500); }
+    .btn-lg { padding: 12px 24px; font-size: 16px; }
+    .card { background: white; border-radius: 12px; border: 1px solid var(--gray-200); padding: 24px; }
+    .input { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 14px; }
+    .input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    .label { font-size: 13px; font-weight: 500; color: var(--gray-700); margin-bottom: 6px; display: block; }
+    .form-group { margin-bottom: 16px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+    .badge-green { background: #dcfce7; color: var(--success); }
+    .badge-yellow { background: #fef3c7; color: var(--warning); }
+    .badge-teal { background: var(--primary-light); color: var(--primary-dark); }
+    .badge-blue { background: #dbeafe; color: var(--accent); }
+    .badge-gray { background: var(--gray-100); color: var(--gray-500); }
+
+    /* Landing */
+    .landing-hero { background: linear-gradient(135deg, #134e4a 0%, #0d9488 50%, #14b8a6 100%); color: white; padding: 80px 40px; text-align: center; }
+    .landing-hero h1 { font-size: 40px; font-weight: 800; margin-bottom: 16px; }
+    .landing-hero .subtitle { font-size: 18px; opacity: 0.9; margin-bottom: 8px; }
+    .landing-hero .tech-tag { font-size: 14px; opacity: 0.8; margin-bottom: 24px; }
+    .landing-cta { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+    .btn-hero-secondary { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.75); }
+    .btn-hero-secondary:hover { background: rgba(255,255,255,0.12); border-color: white; }
+    .btn-hero-primary { background: white; color: var(--primary-dark); font-weight: 600; }
+    .btn-hero-primary:hover { background: #f0fdfa; }
+    .agent-flow { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 40px auto; max-width: 900px; padding: 24px; background: rgba(255,255,255,0.1); border-radius: 16px; }
+    .agent-node { background: white; color: var(--gray-900); padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; text-align: center; min-width: 100px; }
+    .agent-node small { display: block; font-weight: 400; color: var(--gray-500); font-size: 11px; margin-top: 4px; }
+    .agent-arrow { color: white; font-size: 20px; }
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1000px; margin: 0 auto; padding: 60px 40px; }
+    .feature-card { text-align: center; padding: 32px 20px; }
+    .feature-icon { font-size: 36px; margin-bottom: 12px; }
+
+    /* Layout */
+    .app-layout { display: flex; min-height: calc(100vh - 48px); }
+    .sidebar { width: 240px; background: white; border-right: 1px solid var(--gray-200); padding: 20px 12px; flex-shrink: 0; }
+    .sidebar-logo { font-size: 17px; font-weight: 700; color: var(--primary); padding: 0 12px 20px; }
+    .sidebar-nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: var(--gray-700); text-decoration: none; font-size: 14px; margin-bottom: 4px; }
+    .sidebar-nav a:hover { background: var(--gray-100); }
+    .sidebar-nav a.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 500; }
+    .main-content { flex: 1; padding: 24px 32px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .page-header h1 { font-size: 24px; font-weight: 700; }
+
+    .auth-container { display: flex; min-height: calc(100vh - 48px); align-items: center; justify-content: center; padding: 40px; }
+    .auth-card { width: 400px; }
+    .auth-card h2 { text-align: center; margin-bottom: 24px; }
+
+    .case-item { display: flex; align-items: center; justify-content: space-between; padding: 20px; margin-bottom: 12px; transition: box-shadow 0.2s; cursor: pointer; }
+    .case-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .case-meta { font-size: 13px; color: var(--gray-500); margin-top: 4px; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-section h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--gray-200); }
+    .objective-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .tag { background: var(--primary-light); color: var(--primary-dark); padding: 4px 10px; border-radius: 6px; font-size: 13px; }
+
+  /* Agent Pipeline Monitor */
+    .pipeline { display: flex; flex-direction: column; gap: 0; max-width: 700px; margin: 0 auto; }
+    .pipeline-step { display: flex; gap: 20px; position: relative; }
+    .pipeline-step:not(:last-child) .step-line { position: absolute; left: 23px; top: 48px; width: 2px; height: calc(100% - 24px); background: var(--gray-200); }
+    .step-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; z-index: 1; }
+    .step-icon.done { background: #dcfce7; color: var(--success); }
+    .step-icon.running { background: var(--primary-light); color: var(--primary); animation: pulse 1.5s infinite; }
+    .step-icon.pending { background: var(--gray-100); color: var(--gray-500); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .step-content { flex: 1; padding-bottom: 28px; }
+    .step-content h4 { font-size: 15px; margin-bottom: 4px; }
+    .step-content p { font-size: 13px; color: var(--gray-500); }
+    .step-output { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 12px; color: var(--gray-700); line-height: 1.6; }
+
+    /* Case Detail Tabs */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--gray-200); margin-bottom: 20px; }
+    .tab { padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 14px; color: var(--gray-500); border-bottom: 2px solid transparent; }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    .case-content { font-size: 15px; line-height: 1.8; color: var(--gray-700); }
+    .case-content h3 { font-size: 17px; margin: 20px 0 10px; color: var(--gray-900); }
+    .question-item { padding: 12px 16px; border-left: 3px solid var(--primary); background: var(--gray-50); margin-bottom: 12px; border-radius: 0 8px 8px 0; }
+    .question-level { font-size: 11px; color: var(--primary); font-weight: 600; margin-bottom: 4px; }
+
+    .export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 900px; }
+    .option-card { padding: 16px; border: 2px solid var(--gray-200); border-radius: 10px; margin-bottom: 12px; cursor: pointer; }
+    .option-card.selected { border-color: var(--primary); background: var(--primary-light); }
+
+    /* Admin Agent Config */
+    .admin-badge { background: #7c3aed; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+    .admin-layout { display: flex; min-height: calc(100vh - 48px); }
+    .admin-subnav { width: 200px; background: #f8fafc; border-right: 1px solid var(--gray-200); padding: 16px 10px; flex-shrink: 0; }
+    .admin-subnav-title { font-size: 11px; font-weight: 600; color: var(--gray-500); padding: 8px 12px; text-transform: uppercase; }
+    .admin-subnav a { display: block; padding: 10px 12px; border-radius: 8px; color: var(--gray-700); text-decoration: none; font-size: 13px; margin-bottom: 2px; cursor: pointer; }
+    .admin-subnav a:hover { background: var(--gray-100); }
+    .admin-subnav a.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
+    .admin-main { flex: 1; padding: 24px 28px; overflow-y: auto; }
+    .admin-section { display: none; }
+    .admin-section.active { display: block; }
+    .layer-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .layer-card { padding: 14px; border-radius: 10px; border: 1px solid var(--gray-200); background: white; font-size: 12px; }
+    .layer-card strong { display: block; font-size: 13px; margin-bottom: 4px; }
+    .layer-card span { color: var(--gray-500); }
+    .agent-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .agent-table th { text-align: left; padding: 10px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); font-size: 12px; color: var(--gray-500); }
+    .agent-table td { padding: 14px 12px; border-bottom: 1px solid var(--gray-200); vertical-align: middle; }
+    .agent-table tr:hover td { background: var(--gray-50); }
+    .agent-table tr { cursor: pointer; }
+    .toggle { width: 40px; height: 22px; background: var(--primary); border-radius: 11px; position: relative; display: inline-block; }
+    .toggle.off { background: var(--gray-300); }
+    .toggle::after { content: ''; width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px; }
+    .toggle.off::after { right: auto; left: 2px; }
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .config-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .prompt-editor { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.6; min-height: 200px; resize: vertical; }
+    .tool-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 20px; font-size: 12px; margin: 4px; background: white; }
+    .tool-chip.bound { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); }
+    .tool-chip input { margin: 0; }
+    .version-list { list-style: none; }
+    .version-list li { padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .version-list li.active-version { border-color: var(--primary); background: var(--primary-light); }
+    .workflow-pipeline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 20px; background: var(--gray-50); border-radius: 12px; margin-bottom: 16px; }
+    .workflow-node { padding: 10px 14px; background: white; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-weight: 600; }
+    .workflow-node.active-node { border-color: var(--primary); background: var(--primary-light); }
+    .workflow-arrow { color: var(--gray-400); }
+    .monitor-stat { text-align: center; padding: 16px; }
+    .monitor-stat .num { font-size: 28px; font-weight: 700; color: var(--primary); }
+    .monitor-stat .lbl { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+    .sample-run-output { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 12px; line-height: 1.6; max-height: 200px; overflow-y: auto; margin-top: 12px; }
+    .info-banner { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
+
+    /* Teacher Dashboard Stats */
+    .dash-welcome { margin-bottom: 4px; }
+    .dash-welcome h2 { font-size: 18px; font-weight: 600; }
+    .dash-welcome p { font-size: 13px; color: var(--gray-500); margin-top: 4px; }
+    .dash-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .dash-filter { display: flex; gap: 6px; }
+    .dash-filter button { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--gray-200); background: white; font-size: 13px; cursor: pointer; color: var(--gray-600); }
+    .dash-filter button.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: white; border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; position: relative; overflow: hidden; }
+    .stat-card .stat-label { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+    .stat-card .stat-value { font-size: 26px; font-weight: 700; color: var(--gray-900); line-height: 1.2; }
+    .stat-card .stat-sub { font-size: 11px; color: var(--gray-500); margin-top: 6px; }
+    .stat-card .stat-trend { font-size: 12px; font-weight: 600; margin-top: 6px; }
+    .stat-trend.up { color: var(--success); }
+    .stat-trend.down { color: #dc2626; }
+    .stat-card.highlight { border-color: var(--primary); background: linear-gradient(135deg, #f0fdfa 0%, white 100%); }
+    .stat-card .stat-icon { position: absolute; top: 12px; right: 12px; font-size: 20px; opacity: 0.45; }
+    .dash-charts { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 16px; margin-bottom: 24px; }
+    .chart-card { background: white; border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
+    .chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .chart-card .chart-desc { font-size: 12px; color: var(--gray-500); margin-bottom: 16px; }
+    .bar-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+    .bar-chart-row .bar-label { width: 72px; color: var(--gray-600); flex-shrink: 0; }
+    .bar-chart-row .bar-track { flex: 1; height: 8px; background: var(--gray-100); border-radius: 4px; overflow: hidden; }
+    .bar-chart-row .bar-fill { height: 100%; background: var(--primary); border-radius: 4px; }
+    .bar-chart-row .bar-num { width: 28px; text-align: right; font-weight: 600; color: var(--gray-700); }
+    .trend-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; padding-top: 8px; }
+    .trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .trend-bar { width: 100%; background: var(--primary-light); border-radius: 4px 4px 0 0; min-height: 4px; }
+    .trend-bar.peak { background: var(--primary); }
+    .trend-label { font-size: 10px; color: var(--gray-500); }
+    .status-donut-wrap { display: flex; align-items: center; gap: 20px; }
+    .status-donut { width: 88px; height: 88px; border-radius: 50%; background: conic-gradient(var(--primary) 0 55%, #fbbf24 55% 75%, #93c5fd 75% 90%, var(--gray-200) 90%); flex-shrink: 0; }
+    .status-legend { font-size: 12px; line-height: 2; color: var(--gray-600); }
+    .status-legend span { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+    .list-section-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+
+    @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } .dash-charts { grid-template-columns: 1fr; } }
+
+    @media (max-width: 768px) {
+      .feature-grid, .form-row, .export-grid, .config-grid, .config-grid-3, .layer-cards { grid-template-columns: 1fr; }
+      .agent-flow { flex-direction: column; }
+      .agent-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="proto-nav">
+  <span class="logo">CaseAutoGenSystem</span>
+  <span class="proto-badge">教学案例 · AutoGen 原型</span>
+  <div class="page-tabs">
+    <button class="page-tab active" onclick="showPage('landing')">P01 首页</button>
+    <button class="page-tab" onclick="showPage('auth')">P02 登录</button>
+    <button class="page-tab" onclick="showPage('dashboard')">P03 工作台</button>
+    <button class="page-tab" onclick="showPage('create')">P04 创建案例</button>
+    <button class="page-tab" onclick="showPage('generate')">P05 Agent协作</button>
+    <button class="page-tab" onclick="showPage('detail')">P06 案例详情</button>
+    <button class="page-tab" onclick="showPage('agents')">P07 Agent配置</button>
+    <button class="page-tab" onclick="showPage('export')">P08 导出</button>
+  </div>
+</nav>
+
+<!-- P01 Landing -->
+<div id="page-landing" class="page active">
+  <div class="landing-hero">
+    <h1>AutoGen 教学案例自动生成系统</h1>
+    <p class="subtitle">多智能体协作 · 20 分钟产出可授课案例包</p>
+    <p class="tech-tag">基于 Microsoft AutoGen 框架 · 策划 / 专家 / 撰写 / 教学设计 / 评审 五角色协作</p>
+    <div class="landing-cta">
+      <button class="btn btn-hero-secondary btn-lg" onclick="showPage('agents')">⚙️ Agent 配置中心</button>
+      <button class="btn btn-hero-primary btn-lg" onclick="showPage('create')">创建教学案例 →</button>
+    </div>
+    <div class="agent-flow">
+      <div class="agent-node">CasePlanner<small>结构策划</small></div>
+      <span class="agent-arrow">→</span>
+      <div class="agent-node">DomainExpert<small>学科情境</small></div>
+      <span class="agent-arrow">→</span>
+      <div class="agent-node">CaseWriter<small>案例撰写</small></div>
+      <span class="agent-arrow">→</span>
+      <div class="agent-node">Pedagogy<small>讨论题设计</small></div>
+      <span class="agent-arrow">→</span>
+      <div class="agent-node">Reviewer<small>质量评审</small></div>
+    </div>
+  </div>
+  <div class="feature-grid">
+    <div class="card feature-card">
+      <div class="feature-icon">📋</div>
+      <h3>案例四件套</h3>
+      <p>案例正文、讨论题、教师参考、教学目标对齐表，一次生成完整授课包</p>
+    </div>
+    <div class="card feature-card">
+      <div class="feature-icon">🤖</div>
+      <h3>AutoGen 多 Agent</h3>
+      <p>非单轮 Chat，而是多角色顺序/群组协作，模拟教研团队工作流</p>
+    </div>
+    <div class="card feature-card">
+      <div class="feature-icon">💡</div>
+      <h3>讨论价值优先</h3>
+      <p>强制决策点与冲突设计，Reviewer Agent 按 Rubric 把关讨论深度</p>
+    </div>
+    <div class="card feature-card">
+      <div class="feature-icon">📚</div>
+      <h3>学科可扩展</h3>
+      <p>管理学、经济学、计算机… Agent Prompt 按学科模板插件化配置</p>
+    </div>
+    <div class="card feature-card">
+      <div class="feature-icon">✏️</div>
+      <h3>人机协同</h3>
+      <p>支持局部重跑单个 Agent、人工编辑、版本对比</p>
+    </div>
+    <div class="card feature-card">
+      <div class="feature-icon">📤</div>
+      <h3>授课导出</h3>
+      <p>Word / PDF 授课包，含虚构情境声明，直接用于课堂</p>
+    </div>
+  </div>
+  <div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;">
+    ⚠️ 本系统生成教学案例，非学术论文。情境可为虚构，仅供教学讨论使用。
+  </div>
+</div>
+
+<!-- P02 Auth -->
+<div id="page-auth" class="page">
+  <div class="auth-container">
+    <div class="card auth-card">
+      <h2>教师登录</h2>
+      <p style="text-align:center;color:var(--gray-500);font-size:13px;margin-bottom:20px;">CaseAutoGenSystem 教学案例生成平台</p>
+      <div class="form-group">
+        <label class="label">邮箱</label>
+        <input class="input" type="email" value="teacher@university.edu.cn">
+      </div>
+      <div class="form-group">
+        <label class="label">密码</label>
+        <input class="input" type="password" value="••••••••">
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="showPage('dashboard')">登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- P03 Dashboard -->
+<div id="page-dashboard" class="page">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">CaseAutoGenSystem</div>
+      <nav class="sidebar-nav">
+        <a href="#" class="active">📊 案例工作台</a>
+        <a href="#" onclick="showPage('create')">📝 创建案例</a>
+        <a href="#" onclick="showPage('agents')">🤖 Agent 配置</a>
+        <a href="#">❓ 帮助</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="dash-header-row">
+        <div class="dash-welcome">
+          <h2>你好，陈老师 👋</h2>
+          <p>本学期教学案例生成与使用数据一览</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="dash-filter">
+            <button class="active">本月</button>
+            <button>本学期</button>
+            <button>全部</button>
+          </div>
+          <button class="btn btn-primary" onclick="showPage('create')">+ 创建案例</button>
+        </div>
+      </div>
+
+      <!-- 核心指标卡片 -->
+      <div class="stats-grid">
+        <div class="stat-card highlight">
+          <span class="stat-icon">📋</span>
+          <div class="stat-label">案例总数</div>
+          <div class="stat-value">12</div>
+          <div class="stat-trend up">↑ 3 较上月</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">✅</span>
+          <div class="stat-label">已定稿</div>
+          <div class="stat-value">8</div>
+          <div class="stat-sub">完成率 66.7%</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">⟳</span>
+          <div class="stat-label">生成中</div>
+          <div class="stat-value">1</div>
+          <div class="stat-sub">Agent 协作进行中</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">⭐</span>
+          <div class="stat-label">平均 Rubric</div>
+          <div class="stat-value">4.2</div>
+          <div class="stat-trend up">↑ 0.3 较上月</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">⏱</span>
+          <div class="stat-label">预估节省工时</div>
+          <div class="stat-value">96<span style="font-size:14px;font-weight:500;"> 小时</span></div>
+          <div class="stat-sub">按每案例节省 8h 估算</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">📤</span>
+          <div class="stat-label">导出次数</div>
+          <div class="stat-value">15</div>
+          <div class="stat-sub">Word 11 · PDF 4</div>
+        </div>
+      </div>
+
+      <!-- 图表区 -->
+      <div class="dash-charts">
+        <div class="chart-card">
+          <h3>学科分布</h3>
+          <div class="chart-desc">各学科案例数量</div>
+          <div class="bar-chart-row">
+            <span class="bar-label">管理学</span>
+            <div class="bar-track"><div class="bar-fill" style="width:85%"></div></div>
+            <span class="bar-num">5</span>
+          </div>
+          <div class="bar-chart-row">
+            <span class="bar-label">经济学</span>
+            <div class="bar-track"><div class="bar-fill" style="width:68%"></div></div>
+            <span class="bar-num">4</span>
+          </div>
+          <div class="bar-chart-row">
+            <span class="bar-label">计算机</span>
+            <div class="bar-track"><div class="bar-fill" style="width:51%"></div></div>
+            <span class="bar-num">3</span>
+          </div>
+          <div class="bar-chart-row">
+            <span class="bar-label">其他</span>
+            <div class="bar-track"><div class="bar-fill" style="width:17%"></div></div>
+            <span class="bar-num">1</span>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>案例状态</h3>
+          <div class="chart-desc">当前全部案例状态占比</div>
+          <div class="status-donut-wrap">
+            <div class="status-donut"></div>
+            <div class="status-legend">
+              <div><span style="background:var(--primary)"></span>已定稿 8 (55%)</div>
+              <div><span style="background:#fbbf24"></span>生成中 1 (8%)</div>
+              <div><span style="background:#93c5fd"></span>待编辑 2 (17%)</div>
+              <div><span style="background:var(--gray-200)"></span>草稿 1 (8%)</div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>近 6 月生成趋势</h3>
+          <div class="chart-desc">每月新建案例数</div>
+          <div class="trend-chart">
+            <div class="trend-col"><div class="trend-bar" style="height:30%"></div><span class="trend-label">1月</span></div>
+            <div class="trend-col"><div class="trend-bar" style="height:45%"></div><span class="trend-label">2月</span></div>
+            <div class="trend-col"><div class="trend-bar" style="height:55%"></div><span class="trend-label">3月</span></div>
+            <div class="trend-col"><div class="trend-bar" style="height:40%"></div><span class="trend-label">4月</span></div>
+            <div class="trend-col"><div class="trend-bar peak" style="height:75%"></div><span class="trend-label">5月</span></div>
+            <div class="trend-col"><div class="trend-bar peak" style="height:100%"></div><span class="trend-label">6月</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 次要指标 -->
+      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+        <div class="stat-card" style="padding:14px;">
+          <div class="stat-label">平均生成耗时</div>
+          <div class="stat-value" style="font-size:22px;">14.2<span style="font-size:13px;font-weight:500;"> 分钟</span></div>
+        </div>
+        <div class="stat-card" style="padding:14px;">
+          <div class="stat-label">讨论题总数</div>
+          <div class="stat-value" style="font-size:22px;">68<span style="font-size:13px;font-weight:500;"> 题</span></div>
+        </div>
+        <div class="stat-card" style="padding:14px;">
+          <div class="stat-label">局部 Agent 重跑</div>
+          <div class="stat-value" style="font-size:22px;">23<span style="font-size:13px;font-weight:500;"> 次</span></div>
+        </div>
+        <div class="stat-card" style="padding:14px;">
+          <div class="stat-label">剩余生成额度</div>
+          <div class="stat-value" style="font-size:22px;color:var(--primary);">5<span style="font-size:13px;font-weight:500;"> 次</span></div>
+        </div>
+      </div>
+
+      <div class="list-section-title">
+        <span>最近案例</span>
+        <span style="font-size:13px;color:var(--gray-500);font-weight:400;">共 12 个 · 按更新时间排序</span>
+      </div>
+      <div class="card case-item" onclick="showPage('detail')">
+        <div>
+          <h3>制造企业数字化转型中的组织阻力</h3>
+          <div class="case-meta">管理学 · 组织行为学 · 决策型 · 本科 · 更新于 2026-06-26</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="badge badge-green">已定稿</span>
+          <span class="badge badge-teal">Rubric 4.3</span>
+          <button class="btn btn-outline" onclick="event.stopPropagation();showPage('export')">导出</button>
+        </div>
+      </div>
+      <div class="card case-item" onclick="showPage('generate')">
+        <div>
+          <h3>新能源汽车供应链中断应对策略</h3>
+          <div class="case-meta">经济学 · 供应链管理 · 分析型 · 硕士 · 更新于 2026-06-26</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="badge badge-yellow">Agent 协作中</span>
+          <button class="btn btn-outline" onclick="event.stopPropagation();showPage('generate')">查看协作</button>
+        </div>
+      </div>
+      <div class="card case-item">
+        <div>
+          <h3>敏捷开发团队中的技术债务抉择</h3>
+          <div class="case-meta">计算机 · 软件工程 · 情境模拟 · 本科 · 更新于 2026-06-24</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="badge badge-blue">待编辑</span>
+          <button class="btn btn-outline" onclick="showPage('detail')">编辑</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- P04 Create Case -->
+<div id="page-create" class="page">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">CaseAutoGenSystem</div>
+      <nav class="sidebar-nav">
+        <a href="#" onclick="showPage('dashboard')">📊 案例工作台</a>
+        <a href="#" class="active">📝 创建案例</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header"><h1>配置教学案例任务</h1></div>
+      <div style="max-width:720px;">
+        <div class="card">
+          <div class="form-section">
+            <h3>案例基本信息</h3>
+            <div class="form-group">
+              <label class="label">案例主题</label>
+              <input class="input" value="制造企业数字化转型中的组织阻力">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="label">学科分类</label>
+                <select class="input"><option>管理学</option><option>经济学</option><option>计算机科学</option><option>法学</option></select>
+              </div>
+              <div class="form-group">
+                <label class="label">课程名称</label>
+                <input class="input" value="组织行为学">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="label">案例类型</label>
+                <select class="input"><option>决策型</option><option>分析型</option><option>情境模拟</option><option>问题诊断</option></select>
+              </div>
+              <div class="form-group">
+                <label class="label">适用对象</label>
+                <select class="input"><option>本科</option><option>硕士</option><option>企业培训</option></select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="label">难度</label>
+                <select class="input"><option>中级</option><option>初级</option><option>高级</option></select>
+              </div>
+              <div class="form-group">
+                <label class="label">案例正文字数</label>
+                <input class="input" type="number" value="2800">
+              </div>
+            </div>
+          </div>
+          <div class="form-section">
+            <h3>教学目标</h3>
+            <div class="objective-row"><input class="input" value="分析组织变革中不同利益相关方的立场与诉求"><button class="btn btn-outline">×</button></div>
+            <div class="objective-row"><input class="input" value="识别数字化转型中的典型阻力来源"><button class="btn btn-outline">×</button></div>
+            <button class="btn btn-outline" style="font-size:13px;">+ 添加教学目标</button>
+          </div>
+          <div class="form-section">
+            <h3>AutoGen 编排</h3>
+            <div class="form-group">
+              <label class="label">Agent 工作流模板</label>
+              <select class="input">
+                <option>标准流水线（Sequential 五 Agent）</option>
+                <option>深度评审（GroupChat 多轮修订）</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="label">特殊要求</label>
+              <textarea class="input" rows="3" placeholder="行业偏好、需突出的冲突类型…">希望突出中层管理者与一线员工的立场冲突，适合 2 课时课堂讨论。</textarea>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end;">
+            <button class="btn btn-outline" onclick="showPage('dashboard')">取消</button>
+            <button class="btn btn-primary btn-lg" onclick="showPage('generate')">启动 AutoGen 生成 →</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- P05 Agent Collaboration Monitor -->
+<div id="page-generate" class="page">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">CaseAutoGenSystem</div>
+      <nav class="sidebar-nav"><a href="#" onclick="showPage('dashboard')">📊 案例工作台</a></nav>
+    </aside>
+    <main class="main-content">
+      <div style="text-align:center;margin-bottom:32px;">
+        <h2>AutoGen 多 Agent 协作中</h2>
+        <p style="color:var(--gray-500);margin-top:8px;">新能源汽车供应链中断应对策略 · Sequential 流水线 · 预计剩余 6 分钟</p>
+        <div style="margin-top:16px;">
+          <span class="badge badge-teal">整体进度 60%</span>
+          <span class="badge badge-gray" style="margin-left:8px;">Token 已用 12,400</span>
+        </div>
+      </div>
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <div class="step-line"></div>
+          <div class="step-icon done">✓</div>
+          <div class="step-content">
+            <h4>CasePlanner <span class="badge badge-green">完成 · 11s</span></h4>
+            <p>输出案例大纲：背景-冲突-决策点结构，3 个角色，2 课时讨论设计</p>
+            <div class="step-output">大纲 JSON：4 个章节节点，核心决策点「是否切换备用供应商 vs 维持单一供应关系」...</div>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-line"></div>
+          <div class="step-icon done">✓</div>
+          <div class="step-content">
+            <h4>DomainExpert <span class="badge badge-green">完成 · 14s</span></h4>
+            <p>补充汽车行业供应链、芯片短缺背景、JIT 生产模式专业情境</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-line"></div>
+          <div class="step-icon running">⟳</div>
+          <div class="step-content">
+            <h4>CaseWriter <span class="badge badge-yellow">撰写中</span></h4>
+            <p>正在撰写案例正文… 已写 1,680 / 2,800 字</p>
+            <div style="height:4px;background:var(--gray-200);border-radius:2px;margin-top:8px;"><div style="height:100%;width:60%;background:var(--primary);border-radius:2px;"></div></div>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-line"></div>
+          <div class="step-icon pending">○</div>
+          <div class="step-content">
+            <h4>PedagogyDesigner <span class="badge badge-gray">等待</span></h4>
+            <p>将生成分层讨论题与课堂活动方案</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-icon pending">○</div>
+          <div class="step-content">
+            <h4>Reviewer <span class="badge badge-gray">等待</span></h4>
+            <p>Rubric 五维度评审，不达标将触发 GroupChat 修订</p>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:32px;">
+        <button class="btn btn-outline" onclick="showPage('dashboard')">返回工作台</button>
+        <button class="btn btn-primary" onclick="showPage('detail')" style="margin-left:8px;">预览已完成部分</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- P06 Case Detail -->
+<div id="page-detail" class="page">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">CaseAutoGenSystem</div>
+      <nav class="sidebar-nav">
+        <a href="#" onclick="showPage('dashboard')">📊 案例工作台</a>
+        <a href="#" class="active">📄 案例详情</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1>制造企业数字化转型中的组织阻力</h1>
+          <p style="color:var(--gray-500);font-size:13px;margin-top:4px;">管理学 · 组织行为学 · Rubric 4.3 · AutoGen 五 Agent 生成</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline">重跑 Pedagogy Agent</button>
+          <button class="btn btn-primary" onclick="showPage('export')">导出授课包</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('body')">案例正文</button>
+          <button class="tab" onclick="switchTab('questions')">讨论题</button>
+          <button class="tab" onclick="switchTab('guide')">教师参考</button>
+          <button class="tab" onclick="switchTab('alignment')">目标对齐</button>
+        </div>
+        <div id="tab-body" class="case-content">
+          <p style="font-size:12px;color:var(--gray-500);margin-bottom:16px;">⚠️ 本案例为教学虚构情境，不代表任何真实企业</p>
+          <h3>一、背景</h3>
+          <p>华鑫制造有限公司是一家拥有 30 年历史的中型装备制造企业，年销售额约 8 亿元。2024 年初，公司启动数字化转型项目，计划在未来 18 个月内引入 ERP 升级、生产数据上云和智能排产系统。公司总经理李明寄予厚望，但项目推进三个月后，阻力日益显现……</p>
+          <h3>二、冲突升级</h3>
+          <p>生产部副部长王强在部门会议上公开质疑：「新系统要求每日录入大量数据，一线班组抱怨工作量翻倍，而效率提升并不明显。」与此同时，IT 部门负责人陈薇则认为：「变革必然有阵痛，不能因为短期不适就动摇战略方向。」</p>
+          <h3>三、决策点</h3>
+          <p><strong>公司即将召开高管会，决定是否暂停数字化项目第二阶段，先解决一线抵触问题，还是按原计划全面推进。</strong>作为咨询顾问，你需要帮助管理团队分析各方立场，并提出可行的推进策略。</p>
+        </div>
+        <div id="tab-questions" class="case-content" style="display:none;">
+          <div class="question-item"><div class="question-level">理解层</div>案例中三类利益相关方（高管、中层、一线）各自的核心诉求是什么？</div>
+          <div class="question-item"><div class="question-level">分析层</div>组织阻力背后反映了华鑫制造哪些深层次的组织文化或管理问题？</div>
+          <div class="question-item"><div class="question-level">评价层</div>王强「公开质疑」的行为是否合适？对变革推进有何影响？</div>
+          <div class="question-item"><div class="question-level">创造层</div>如果你是李明，在高管会上将如何发言并做出决策？请给出你的方案及理由。</div>
+        </div>
+        <div id="tab-guide" class="case-content" style="display:none;">
+          <h3>建议授课流程（2 课时）</h3>
+          <p>第 1 课时：学生阅读案例（20min）→ 小组讨论分析层问题（25min）→ 班级分享（15min）</p>
+          <p>第 2 课时：评价层辩论（20min）→ 创造层小组汇报（30min）→ 教师总结（10min）</p>
+          <h3>常见误区</h3>
+          <p>学生容易将问题简化为「技术问题」，需引导关注组织行为与变革管理维度。</p>
+        </div>
+        <div id="tab-alignment" class="case-content" style="display:none;">
+          <table style="width:100%;font-size:14px;border-collapse:collapse;">
+            <tr style="background:var(--gray-50);"><th style="padding:10px;border:1px solid var(--gray-200);">教学目标</th><th style="padding:10px;border:1px solid var(--gray-200);">案例环节</th><th style="padding:10px;border:1px solid var(--gray-200);">课堂活动</th></tr>
+            <tr><td style="padding:10px;border:1px solid var(--gray-200);">分析利益相关方诉求</td><td style="padding:10px;border:1px solid var(--gray-200);">冲突升级段落</td><td style="padding:10px;border:1px solid var(--gray-200);">小组讨论</td></tr>
+            <tr><td style="padding:10px;border:1px solid var(--gray-200);">识别变革阻力来源</td><td style="padding:10px;border:1px solid var(--gray-200);">决策点</td><td style="padding:10px;border:1px solid var(--gray-200);">班级辩论</td></tr>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- P08 Export -->
+<div id="page-export" class="page">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">CaseAutoGenSystem</div>
+      <nav class="sidebar-nav"><a href="#" onclick="showPage('detail')">📄 案例详情</a></nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header"><h1>导出授课包</h1></div>
+      <div class="export-grid">
+        <div class="card">
+          <h3 style="margin-bottom:12px;">包含内容预览</h3>
+          <ul style="font-size:14px;color:var(--gray-700);line-height:2;">
+            <li>✓ 案例正文（2,800 字）</li>
+            <li>✓ 讨论题（6 题，四层分类）</li>
+            <li>✓ 教师参考手册</li>
+            <li>✓ 教学目标对齐表</li>
+            <li>✓ 虚构情境声明</li>
+          </ul>
+        </div>
+        <div>
+          <div class="option-card selected">
+            <h4>📄 Word 授课包 (.docx)</h4>
+            <p style="font-size:12px;color:var(--gray-500);">可编辑格式：案例正文 + 讨论题 + 教师参考合并排版</p>
+          </div>
+          <div class="option-card">
+            <h4>📕 PDF 文档 (.pdf)</h4>
+            <p style="font-size:12px;color:var(--gray-500);">只读格式，适合打印提交与课堂分发</p>
+          </div>
+          <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">导出格式仅支持 Word 与 PDF</p>
+          <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center;margin-top:16px;">⬇ 下载 Word 授课包</button>
+          <button class="btn btn-outline btn-lg" style="width:100%;justify-content:center;margin-top:8px;">⬇ 下载 PDF</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- P07 Agent 配置管理 -->
+<div id="page-agents" class="page">
+  <div class="admin-layout">
+    <aside class="admin-subnav">
+      <div style="padding:8px 12px 16px;font-weight:700;color:var(--primary);font-size:15px;">⚙️ Agent 配置中心</div>
+      <div class="admin-subnav-title">配置模块</div>
+      <a class="active" onclick="showAdminSection('agent-list')">🤖 Agent 角色</a>
+      <a onclick="showAdminSection('workflow')">🔗 编排模板</a>
+      <a onclick="showAdminSection('tools')">🔧 Tool 工具</a>
+      <a onclick="showAdminSection('subjects')">📚 学科插件</a>
+      <a onclick="showAdminSection('global')">🌐 全局设置</a>
+      <a onclick="showAdminSection('monitor')">📊 运行监控</a>
+      <div class="admin-subnav-title" style="margin-top:16px;">教师端</div>
+      <a onclick="showPage('dashboard')">← 返回工作台</a>
+    </aside>
+    <div class="admin-main">
+
+      <!-- 四层配置说明 -->
+      <div id="admin-agent-list" class="admin-section active">
+        <div class="page-header" style="margin-bottom:16px;">
+          <div>
+            <h1>Agent 角色配置 <span class="admin-badge">管理员</span></h1>
+            <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">定义每个 AutoGen Agent 的职责、Prompt、模型与工具绑定</p>
+          </div>
+          <button class="btn btn-outline" onclick="showAgentDetail()">编辑 CasePlanner 示例 →</button>
+        </div>
+        <div class="layer-cards">
+          <div class="layer-card"><strong>L1 全局层</strong><span>LLM 接入、Token 预算、合规开关</span></div>
+          <div class="layer-card" style="border-color:var(--primary);"><strong>L2 角色层 ★</strong><span>Prompt、模型、Tool、输出 Schema</span></div>
+          <div class="layer-card"><strong>L3 编排层</strong><span>Sequential / GroupChat、顺序与轮次</span></div>
+          <div class="layer-card"><strong>L4 学科层</strong><span>学科模板、术语表注入</span></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table class="agent-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>职责（用来干嘛）</th>
+                <th>模型</th>
+                <th>激活版本</th>
+                <th>Tool</th>
+                <th>启用</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr onclick="showAgentDetail('TeacherProxy')">
+                <td><strong>TeacherProxy</strong></td>
+                <td style="color:var(--gray-500);font-size:13px;">封装教师表单参数，驱动任务启动</td>
+                <td>—</td>
+                <td><span class="badge badge-gray">v1.0</span></td>
+                <td>0</td>
+                <td><span class="toggle"></span></td>
+              </tr>
+              <tr onclick="showAgentDetail('CasePlanner')">
+                <td><strong>CasePlanner</strong></td>
+                <td style="color:var(--gray-500);font-size:13px;">设计案例结构、决策点、教学目标对齐</td>
+                <td>gpt-4o</td>
+                <td><span class="badge badge-teal">v1.2 ★</span></td>
+                <td>2</td>
+                <td><span class="toggle"></span></td>
+              </tr>
+              <tr onclick="showAgentDetail('DomainExpert')">
+                <td><strong>DomainExpert</strong></td>
+                <td style="color:var(--gray-500);font-size:13px;">补充学科情境、行业术语、专业约束</td>
+                <td>gpt-4o</td>
+                <td><span class="badge badge-teal">v1.1 ★</span></td>
+                <td>2</td>
+                <td><span class="toggle"></span></td>
+              </tr>
+              <tr onclick="showAgentDetail('CaseWriter')">
+                <td><strong>CaseWriter</strong></td>
+                <td style="color:var(--gray-500);font-size:13px;">撰写案例正文叙事（情境→冲突→决策点）</td>
+                <td>gpt-4o</td>
+                <td><span class="badge badge-teal">v1.3 ★</span></td>
+                <td>3</td>
+                <td><span class="toggle"></span></td>
+              </tr>
+              <tr onclick="showAgentDetail('PedagogyDesigner')">
+                <td><strong>PedagogyDesigner</strong></td>
+                <td style="color:var(--gray-500);font-size:13px;">设计分层讨论题、课堂活动、教师引导要点</td>
+                <td>gpt-4o</td>
+                <td><span class="badge badge-teal">v1.0 ★</span></td>
+                <td>2</td>
+                <td><span class="toggle"></span></td>
+              </tr>
+              <tr onclick="showAgentDetail('Reviewer')">
+                <td><strong>Reviewer</strong></td>
+                <td style="color:var(--gray-500);font-size:13px;">Rubric 五维评分，决定 pass / 需修订</td>
+                <td>deepseek-chat</td>
+                <td><span class="badge badge-teal">v1.1 ★</span></td>
+                <td>2</td>
+                <td><span class="toggle"></span></td>
+              </tr>
+              <tr onclick="showAgentDetail('Editor')">
+                <td><strong>Editor</strong> <span class="badge badge-gray">可选</span></td>
+                <td style="color:var(--gray-500);font-size:13px;">根据评审意见定向修订案例片段</td>
+                <td>gpt-4o</td>
+                <td><span class="badge badge-gray">v1.0</span></td>
+                <td>1</td>
+                <td><span class="toggle off"></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">点击行进入详情编辑 · ★ 表示当前线上激活版本</p>
+      </div>
+
+      <!-- Agent 详情编辑 -->
+      <div id="admin-agent-detail" class="admin-section">
+        <div class="page-header" style="margin-bottom:16px;">
+          <div>
+            <button class="btn btn-ghost" style="font-size:13px;margin-bottom:8px;" onclick="showAdminSection('agent-list')">← 返回列表</button>
+            <h1 id="agent-detail-title">CasePlanner 配置</h1>
+            <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">用来干嘛：将教学目标转化为含决策点的案例大纲 JSON</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline">版本对比</button>
+            <button class="btn btn-outline">试跑 Sample Run</button>
+            <button class="btn btn-primary">保存为新版本</button>
+          </div>
+        </div>
+        <div class="config-grid">
+          <div class="card">
+            <h3 style="font-size:15px;margin-bottom:16px;">LLM 参数 <span style="font-size:12px;color:var(--gray-500);">质量与成本权衡</span></h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="label">模型 model</label>
+                <select class="input"><option>gpt-4o</option><option>gpt-4o-mini</option><option>deepseek-chat</option></select>
+              </div>
+              <div class="form-group">
+                <label class="label">temperature</label>
+                <input class="input" type="number" value="0.4" step="0.1">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="label">max_tokens</label>
+                <input class="input" type="number" value="2048">
+              </div>
+              <div class="form-group">
+                <label class="label">output_schema</label>
+                <select class="input"><option>CaseOutline</option><option>RubricResult</option><option>— 无</option></select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="label">重试次数 max_attempts</label>
+                <input class="input" type="number" value="2">
+              </div>
+              <div class="form-group">
+                <label class="label">max_turns</label>
+                <input class="input" type="number" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="font-size:15px;margin-bottom:16px;">Prompt 版本 <span style="font-size:12px;color:var(--gray-500);">支持激活 / 回滚</span></h3>
+            <ul class="version-list">
+              <li class="active-version">
+                <span><strong>v1.2</strong> · 2026-06-25 · Rubric 82.5 <span class="badge badge-green">激活中</span></span>
+                <button class="btn btn-outline" style="font-size:12px;padding:4px 10px;">当前</button>
+              </li>
+              <li>
+                <span><strong>v1.1</strong> · 2026-06-18 · Rubric 79.2</span>
+                <button class="btn btn-outline" style="font-size:12px;padding:4px 10px;">激活</button>
+              </li>
+              <li>
+                <span><strong>v1.0</strong> · 2026-06-01 · Rubric 75.0</span>
+                <button class="btn btn-outline" style="font-size:12px;padding:4px 10px;">激活</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px;">
+          <h3 style="font-size:15px;margin-bottom:8px;">system_message <span style="font-size:12px;color:var(--gray-500);">教研调优主战场 · 支持 {subject} {course} 变量</span></h3>
+          <textarea class="input prompt-editor">你是资深教学设计专家，擅长将教学目标转化为案例结构。
+输出必须是合法 JSON，符合 CaseOutline Schema。
+案例必须包含：清晰决策点、角色冲突、可讨论的战略或组织困境。
+不得设计无讨论价值的平淡情境。
+情境可为教学虚构，需在 meta 中标注 fictional_disclaimer。</textarea>
+        </div>
+        <div class="card" style="margin-top:20px;">
+          <h3 style="font-size:15px;margin-bottom:12px;">Tool 绑定 <span style="font-size:12px;color:var(--gray-500);">勾选后 Agent 可调用确定性能力，减少幻觉</span></h3>
+          <div>
+            <label class="tool-chip bound"><input type="checkbox" checked> validate_case_schema</label>
+            <label class="tool-chip bound"><input type="checkbox" checked> load_subject_template</label>
+            <label class="tool-chip"><input type="checkbox"> compute_rubric_score</label>
+            <label class="tool-chip"><input type="checkbox"> check_content_safety</label>
+            <label class="tool-chip"><input type="checkbox"> truncate_context</label>
+            <label class="tool-chip"><input type="checkbox"> inject_fictional_disclaimer</label>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px;">
+          <h3 style="font-size:15px;margin-bottom:12px;">试跑输出 Sample Run</h3>
+          <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px;">用内置样例参数单独运行本 Agent，不触发完整流水线</p>
+          <button class="btn btn-primary">▶ 运行试跑</button>
+          <div class="sample-run-output">{
+  "outline": {
+    "title": "制造企业数字化转型中的组织阻力",
+    "decision_point": "是否暂停二期数字化项目以化解一线抵触",
+    "characters": [
+      {"name": "李明", "role": "总经理", "stance": "全面推进"},
+      {"name": "王强", "role": "生产部副部长", "stance": "暂缓二期"}
+    ],
+    "sections": ["背景", "冲突升级", "决策点"]
+  }
+}</div>
+        </div>
+      </div>
+
+      <!-- 编排模板 -->
+      <div id="admin-workflow" class="admin-section">
+        <div class="page-header"><div>
+          <h1>编排模板管理</h1>
+          <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">定义 Agent 协作顺序、GroupChat 规则、超时与 Token 预算</p>
+        </div>
+          <button class="btn btn-primary">+ 新建模板</button>
+        </div>
+        <div class="info-banner">教师创建案例时从此处选择模板 · 管理员可设置默认模板</div>
+        <div class="card" style="margin-bottom:16px;border:2px solid var(--primary);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div>
+              <h3 style="font-size:16px;">sequential_standard <span class="badge badge-green">默认</span></h3>
+              <p style="font-size:13px;color:var(--gray-500);">标准流水线 · Sequential · Reviewer 不通过时警告结束</p>
+            </div>
+            <button class="btn btn-outline">编辑</button>
+          </div>
+          <div class="workflow-pipeline">
+            <div class="workflow-node">TeacherProxy</div><span class="workflow-arrow">→</span>
+            <div class="workflow-node active-node">CasePlanner</div><span class="workflow-arrow">→</span>
+            <div class="workflow-node active-node">DomainExpert</div><span class="workflow-arrow">→</span>
+            <div class="workflow-node active-node">CaseWriter</div><span class="workflow-arrow">→</span>
+            <div class="workflow-node active-node">PedagogyDesigner</div><span class="workflow-arrow">→</span>
+            <div class="workflow-node active-node">Reviewer</div>
+          </div>
+          <div class="config-grid-3" style="font-size:13px;">
+            <div><strong>context_passing</strong><br><span style="color:var(--gray-500);">summary（控 Token）</span></div>
+            <div><strong>超时</strong><br><span style="color:var(--gray-500);">900 秒 / Token 预算 50,000</span></div>
+            <div><strong>Reviewer 失败</strong><br><span style="color:var(--gray-500);">complete_with_warning</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div>
+              <h3 style="font-size:16px;">groupchat_review</h3>
+              <p style="font-size:13px;color:var(--gray-500);">深度评审 · Sequential + GroupChat 修订循环</p>
+            </div>
+            <button class="btn btn-outline">编辑</button>
+          </div>
+          <div class="workflow-pipeline">
+            <span style="font-size:12px;color:var(--gray-500);">五 Agent 流水线 →</span>
+            <div class="workflow-node">Writer</div><span class="workflow-arrow">↔</span>
+            <div class="workflow-node">Pedagogy</div><span class="workflow-arrow">↔</span>
+            <div class="workflow-node">Reviewer</div>
+            <span style="font-size:12px;color:var(--gray-500);">max_round: 6</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tool 注册 -->
+      <div id="admin-tools" class="admin-section">
+        <div class="page-header"><div>
+          <h1>Tool 工具注册</h1>
+          <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">Agent 可调用的硬能力 · 在 Agent 详情页绑定到具体角色</p>
+        </div></div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table class="agent-table">
+            <thead>
+              <tr><th>Tool 名称</th><th>用来干嘛</th><th>绑定 Agent</th><th>状态</th></tr>
+            </thead>
+            <tbody>
+              <tr style="cursor:default;">
+                <td><strong>validate_case_schema</strong></td>
+                <td style="font-size:13px;color:var(--gray-500);">Pydantic 校验案例 JSON 结构，失败触发重试</td>
+                <td>CaseWriter, PedagogyDesigner</td>
+                <td><span class="badge badge-green">启用</span></td>
+              </tr>
+              <tr style="cursor:default;">
+                <td><strong>load_subject_template</strong></td>
+                <td style="font-size:13px;color:var(--gray-500);">加载学科案例结构模板与术语</td>
+                <td>CasePlanner, DomainExpert</td>
+                <td><span class="badge badge-green">启用</span></td>
+              </tr>
+              <tr style="cursor:default;">
+                <td><strong>compute_rubric_score</strong></td>
+                <td style="font-size:13px;color:var(--gray-500);">规则分 + LLM 混合 Rubric 评分</td>
+                <td>Reviewer</td>
+                <td><span class="badge badge-green">启用</span></td>
+              </tr>
+              <tr style="cursor:default;">
+                <td><strong>check_content_safety</strong></td>
+                <td style="font-size:13px;color:var(--gray-500);">敏感词与违规内容检测</td>
+                <td>全部 Agent</td>
+                <td><span class="badge badge-green">启用</span></td>
+              </tr>
+              <tr style="cursor:default;">
+                <td><strong>truncate_context</strong></td>
+                <td style="font-size:13px;color:var(--gray-500);">压缩上游输出再传给下游，控制 Token</td>
+                <td>Orchestrator</td>
+                <td><span class="badge badge-green">启用</span></td>
+              </tr>
+              <tr style="cursor:default;">
+                <td><strong>inject_fictional_disclaimer</strong></td>
+                <td style="font-size:13px;color:var(--gray-500);">强制插入「教学虚构情境」声明</td>
+                <td>CaseWriter</td>
+                <td><span class="badge badge-green">启用</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 学科插件 -->
+      <div id="admin-subjects" class="admin-section">
+        <div class="page-header"><div>
+          <h1>学科插件包</h1>
+          <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">教师选学科时自动注入模板 · 无需改代码扩展新学科</p>
+        </div>
+          <button class="btn btn-primary">+ 上传学科 ZIP</button>
+        </div>
+        <div class="config-grid">
+          <div class="card">
+            <h3 style="font-size:15px;margin-bottom:12px;">管理学 management <span class="badge badge-teal">v2.1</span></h3>
+            <ul style="font-size:13px;color:var(--gray-700);line-height:2;">
+              <li>template_outline.json — 强调组织冲突</li>
+              <li>terminology.json — 42 条术语</li>
+              <li>planner_prompt_snippet.md</li>
+            </ul>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button class="btn btn-outline" style="font-size:12px;">预览注入</button>
+              <button class="btn btn-outline" style="font-size:12px;">下载</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="font-size:15px;margin-bottom:12px;">计算机 science <span class="badge badge-teal">v1.3</span></h3>
+            <ul style="font-size:13px;color:var(--gray-700);line-height:2;">
+              <li>template_outline.json — 技术决策场景</li>
+              <li>terminology.json — 58 条术语</li>
+            </ul>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button class="btn btn-outline" style="font-size:12px;">预览注入</button>
+              <button class="btn btn-outline" style="font-size:12px;">下载</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="font-size:15px;margin-bottom:12px;">经济学 economics <span class="badge badge-gray">v1.0</span></h3>
+            <ul style="font-size:13px;color:var(--gray-700);line-height:2;">
+              <li>template_outline.json — 市场与政策冲突</li>
+            </ul>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button class="btn btn-outline" style="font-size:12px;">预览注入</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 全局设置 -->
+      <div id="admin-global" class="admin-section">
+        <div class="page-header"><div>
+          <h1>全局设置</h1>
+          <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">L1 全局层 · 教师不可修改</p>
+        </div></div>
+        <div class="card" style="max-width:640px;">
+          <div class="form-group">
+            <label class="label">默认 LLM 模型（Agent 未单独指定时回退）</label>
+            <select class="input"><option>gpt-4o</option><option>deepseek-chat</option></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="label">Reviewer 通过阈值</label>
+              <input class="input" type="number" value="4.0" step="0.1">
+            </div>
+            <div class="form-group">
+              <label class="label">单任务 Token 预算上限</label>
+              <input class="input" type="number" value="50000">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="label">任务超时（秒）</label>
+              <input class="input" type="number" value="900">
+            </div>
+            <div class="form-group">
+              <label class="label">Agent 日志保留天数</label>
+              <input class="input" type="number" value="30">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="label" style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" checked> 启用内容安全过滤 check_content_safety
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="label" style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" checked> 记录完整 Agent IO（教研调试，增加存储）
+            </label>
+          </div>
+          <button class="btn btn-primary">保存全局设置</button>
+        </div>
+      </div>
+
+      <!-- 运行监控 -->
+      <div id="admin-monitor" class="admin-section">
+        <div class="page-header"><div>
+          <h1>运行监控</h1>
+          <p style="font-size:13px;color:var(--gray-500);margin-top:4px;">各 Agent 耗时、Token、Rubric 按版本对比</p>
+        </div></div>
+        <div class="config-grid-3" style="margin-bottom:24px;">
+          <div class="card monitor-stat"><div class="num">12.4s</div><div class="lbl">CasePlanner 平均耗时</div></div>
+          <div class="card monitor-stat"><div class="num">28.6s</div><div class="lbl">CaseWriter 平均耗时</div></div>
+          <div class="card monitor-stat"><div class="num">81.2</div><div class="lbl">评测集 Rubric 均分</div></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:15px;margin-bottom:16px;">Token 消耗分布（近 7 天）</h3>
+          <div style="display:flex;gap:12px;align-items:flex-end;height:120px;padding:0 20px;">
+            <div style="flex:1;text-align:center;"><div style="height:40px;background:var(--primary-light);border-radius:4px 4px 0 0;"></div><span style="font-size:11px;">Planner 8%</span></div>
+            <div style="flex:1;text-align:center;"><div style="height:55px;background:var(--primary-light);border-radius:4px 4px 0 0;"></div><span style="font-size:11px;">Expert 12%</span></div>
+            <div style="flex:1;text-align:center;"><div style="height:100px;background:var(--primary);border-radius:4px 4px 0 0;"></div><span style="font-size:11px;">Writer 45%</span></div>
+            <div style="flex:1;text-align:center;"><div style="height:60px;background:var(--primary-light);border-radius:4px 4px 0 0;"></div><span style="font-size:11px;">Pedagogy 18%</span></div>
+            <div style="flex:1;text-align:center;"><div style="height:35px;background:var(--primary-light);border-radius:4px 4px 0 0;"></div><span style="font-size:11px;">Reviewer 17%</span></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <h3 style="font-size:15px;margin-bottom:12px;">Prompt 版本 Rubric 对比</h3>
+          <table class="agent-table">
+            <thead><tr><th>Agent</th><th>版本</th><th>Rubric 分</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr style="cursor:default;"><td>CasePlanner</td><td>v1.2 vs v1.1</td><td>82.5 ↑ 3.3</td><td><span class="badge badge-green">已激活</span></td></tr>
+              <tr style="cursor:default;"><td>CaseWriter</td><td>v1.3 vs v1.2</td><td>84.1 ↑ 2.1</td><td><span class="badge badge-green">已激活</span></td></tr>
+              <tr style="cursor:default;"><td>Reviewer</td><td>v1.1 vs v1.0</td><td>80.0 ↑ 5.0</td><td><span class="badge badge-green">已激活</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const PAGE_MAP = ['landing','auth','dashboard','create','generate','detail','agents','export'];
+
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+    const page = document.getElementById('page-' + id);
+    if (page) page.classList.add('active');
+    const idx = PAGE_MAP.indexOf(id);
+    const tabs = document.querySelectorAll('.page-tab');
+    if (idx >= 0 && tabs[idx]) tabs[idx].classList.add('active');
+    if (id === 'detail' && !document.querySelector('#page-detail .tab.active')) {
+      const firstTab = document.querySelector('#page-detail .tab');
+      if (firstTab) switchCaseTab('body', firstTab);
+    }
+    if (id === 'agents') showAdminSection('agent-list');
+  }
+
+  function switchTab(name) {
+    switchCaseTab(name, event.target);
+  }
+
+  function switchCaseTab(name, tabEl) {
+    document.querySelectorAll('#page-detail .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.case-content').forEach(c => { if(c.id && c.id.startsWith('tab-')) c.style.display='none'; });
+    if (tabEl) tabEl.classList.add('active');
+    const el = document.getElementById('tab-' + name);
+    if (el) el.style.display = 'block';
+  }
+
+  function showAdminSection(section) {
+    const sections = {
+      'agent-list': 'admin-agent-list',
+      'agent-detail': 'admin-agent-detail',
+      'workflow': 'admin-workflow',
+      'tools': 'admin-tools',
+      'subjects': 'admin-subjects',
+      'global': 'admin-global',
+      'monitor': 'admin-monitor'
+    };
+    document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(sections[section]);
+    if (el) el.classList.add('active');
+    document.querySelectorAll('.admin-subnav a').forEach(a => a.classList.remove('active'));
+    const navMap = {
+      'agent-list': 0, 'agent-detail': 0,
+      'workflow': 1, 'tools': 2, 'subjects': 3, 'global': 4, 'monitor': 5
+    };
+    const navLinks = document.querySelectorAll('.admin-subnav a');
+    if (navMap[section] !== undefined && navLinks[navMap[section]]) {
+      navLinks[navMap[section]].classList.add('active');
+    }
+  }
+
+  function showAgentDetail(name) {
+    const titles = {
+      CasePlanner: '设计案例结构、决策点与教学目标对齐',
+      DomainExpert: '补充学科情境、行业术语与专业约束',
+      CaseWriter: '撰写案例正文（情境→冲突→决策点）',
+      PedagogyDesigner: '设计分层讨论题与课堂活动',
+      Reviewer: 'Rubric 五维评分，决定 pass / 需修订',
+      Editor: '根据评审意见定向修订',
+      TeacherProxy: '封装教师表单参数，驱动任务启动'
+    };
+    const agent = name || 'CasePlanner';
+    const titleEl = document.getElementById('agent-detail-title');
+    if (titleEl) titleEl.textContent = agent + ' 配置';
+    const desc = document.querySelector('#admin-agent-detail .page-header p');
+    if (desc) desc.textContent = '用来干嘛：' + (titles[agent] || titles.CasePlanner);
+    showAdminSection('agent-detail');
+  }
+
+  document.querySelectorAll('.dash-filter button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.dash-filter button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

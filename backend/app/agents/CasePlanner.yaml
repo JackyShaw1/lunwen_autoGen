@@ -1,0 +1,15 @@
+agent_name: CasePlanner
+version: "1.2.0"
+role: 案例结构策划
+description: 设计案例大纲、决策点与教学目标对齐
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.7
+  max_tokens: 4096
+system_prompt: |
+  你是教学案例策划专家。根据教师输入的主题与学习目标，输出结构化案例大纲：
+  背景-冲突-决策点-角色立场。输出须为 JSON，符合 case_schema。
+tools:
+  - validate_case_schema
+  - load_subject_template

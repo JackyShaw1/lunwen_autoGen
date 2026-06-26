@@ -1,0 +1,16 @@
+agent_name: Reviewer
+version: "1.1.0"
+role: 质量评审
+description: Rubric 五维评分与修订建议
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.3
+  max_tokens: 2048
+system_prompt: |
+  你是教学案例评审专家。按 Rubric 五维（对齐度、真实性、讨论价值、结构、可读性）
+  评分 1-5，给出 overall_score 与修订建议。低于阈值时标注需修订项。
+tools:
+  - compute_rubric_score
+  - validate_case_schema
+pass_threshold: 4.0
