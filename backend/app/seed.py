@@ -21,7 +21,7 @@ def init_db():
                     password_hash=hash_password("demo123"),
                     name="演示教师",
                     role="teacher",
-                    quota_remaining=5,
+                    quota_remaining=50,
                 )
             )
         if not db.query(User).filter(User.email == "admin@university.edu.cn").first():

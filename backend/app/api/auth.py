@@ -11,13 +11,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    from app.models import User
-
     user = authenticate_user(db, body.email, body.password)
     if not user:
-        # 演示：已注册邮箱允许任意密码登录
-        user = db.query(User).filter(User.email == body.email).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="邮箱或密码错误")
+        raise HTTPException(status_code=401, detail="邮箱或密码错误")
     token = create_access_token(user.id)
     return TokenResponse(access_token=token, user=UserOut(**user_to_dict(user)))

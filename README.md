@@ -49,7 +49,12 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 API 文档：http://localhost:8000/docs  
-默认 Mock 生成（无需 OpenAI Key）。演示账号：`teacher@university.edu.cn`（任意密码）。
+默认 Mock 生成（无需 OpenAI Key）。  
+演示账号：
+- 教师 `teacher@university.edu.cn` / `demo123`
+- 管理员 `admin@university.edu.cn` / `admin123`
+
+配置 `OPENAI_API_KEY` 并将 `USE_MOCK_GENERATION=false` 后，后端将按 Agent YAML 调用真实 LLM 顺序生成。
 
 ### 全栈联调
 

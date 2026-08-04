@@ -25,10 +25,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 演示账号
 
-| 邮箱 | 角色 | 说明 |
+| 邮箱 | 角色 | 密码 |
 |------|------|------|
-| `teacher@university.edu.cn` | teacher | 任意密码可登录 |
-| `admin@university.edu.cn` | admin | 密码 `admin123` 或任意 |
+| `teacher@university.edu.cn` | teacher | `demo123` |
+| `admin@university.edu.cn` | admin | `admin123` |
 
 ## 主要 API
 
@@ -38,6 +38,18 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | GET | `/api/cases` | 案例列表 |
 | POST | `/api/cases` | 创建案例任务 |
 | POST | `/api/cases/{id}/generate` | 启动生成 |
+| GET | `/api/cases/{id}/status` | 生成状态与日志 |
+| GET/PUT | `/api/cases/{id}/package` | 读取/保存案例包（版本递增） |
+| POST | `/api/cases/{id}/regenerate` | 局部重跑指定 Agent |
+| POST | `/api/cases/{id}/export` | 导出 Word/PDF |
+| GET | `/api/admin/agents` | Agent YAML 列表（管理员） |
+| WS | `/ws/cases/{id}` | 生成进度推送 |
+
+## 生成模式
+
+- 默认 `USE_MOCK_GENERATION=true`：YAML 驱动的结构化五 Agent 流水线（无 LLM）
+- 配置 `OPENAI_API_KEY` 且 `USE_MOCK_GENERATION=false`：按 Agent YAML 的 system_prompt 调用 OpenAI 兼容 API
+
 | GET | `/api/cases/{id}/package` | 获取案例四件套 JSON |
 | PUT | `/api/cases/{id}/package` | 保存编辑 |
 | POST | `/api/cases/{id}/export` | 导出 docx/pdf |

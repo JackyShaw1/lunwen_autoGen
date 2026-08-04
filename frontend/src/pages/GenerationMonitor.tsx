@@ -1,27 +1,131 @@
-import { useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
 import { AgentPipeline } from '@/features/generation/AgentPipeline'
+import { AgentStepPanel } from '@/features/generation/AgentStepPanel'
 import { useGenerationWs } from '@/features/generation/useGenerationWs'
-import { startGeneration } from '@/features/cases/api'
+import { fetchCaseStatus, startGeneration } from '@/features/cases/api'
 
 export default function GenerationMonitor() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const progress = useGenerationWs(id, true)
+  const progress = useGenerationWs(id)
+  const started = useRef(false)
+  const [selectedAgent, setSelectedAgent] = useState<string>('CasePlanner')
+  const [autoJump, setAutoJump] = useState(true)
+  const [manualSelect, setManualSelect] = useState(false)
 
   useEffect(() => {
-    if (id) startGeneration(id)
-  }, [id])
+    if (!id || started.current) return
+    started.current = true
+    const resume = searchParams.get('resume') === '1'
+
+    const boot = async () => {
+      try {
+        if (resume) return
+        const st = await fetchCaseStatus(id)
+        if (st.status === 'running') return
+        await startGeneration(id)
+      } catch (err: unknown) {
+        console.error(err)
+        alert(
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+            '启动生成失败',
+        )
+      }
+    }
+    void boot()
+  }, [id, searchParams])
+
+  // 跟随进度：流式输出中锁定该 Agent；否则跟随 running / current
+  useEffect(() => {
+    if (!progress || manualSelect) return
+    if (progress.stream?.agent) {
+      setSelectedAgent(progress.stream.agent)
+      return
+    }
+    const running = progress.agents.find((a) => a.status === 'running')
+    if (running) {
+      setSelectedAgent(running.name)
+      return
+    }
+    if (progress.current_agent) setSelectedAgent(progress.current_agent)
+  }, [progress, manualSelect])
+
+  useEffect(() => {
+    if (!autoJump) return
+    // 全部完成且最后一段流也结束才跳转
+    const streamDone = !progress?.stream || progress.stream.done
+    if (progress && progress.overall_progress >= 100 && streamDone) {
+      const t = window.setTimeout(() => navigate(`/case/${id}`), 2000)
+      return () => window.clearTimeout(t)
+    }
+  }, [progress, id, navigate, autoJump])
 
   if (!progress) return <div className="text-gray-500">连接生成任务…</div>
 
+  const title = (progress.task_meta?.title as string) || '教学案例生成'
+  const remain = progress.estimated_remaining_seconds
+  const streaming = progress.stream && !progress.stream.done
+
   return (
     <div>
-      <AgentPipeline agents={progress.agents} overall={progress.overall_progress} />
-      <div className="mt-8 flex justify-center gap-3">
-        <Button variant="outline" onClick={() => navigate('/dashboard')}>返回工作台</Button>
-        <Button onClick={() => navigate(`/case/${id}`)}>预览已完成部分</Button>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Sequential 五 Agent 流水线
+            {remain != null && remain > 0 ? ` · 预计剩余约 ${Math.ceil(remain / 60)} 分钟` : ''}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge variant="teal">整体进度 {progress.overall_progress}%</Badge>
+            {progress.current_agent && <Badge variant="yellow">当前 {progress.current_agent}</Badge>}
+            {streaming && <Badge variant="blue">打字输出 {progress.stream!.agent}</Badge>}
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          <input
+            type="checkbox"
+            checked={autoJump}
+            onChange={(e) => setAutoJump(e.target.checked)}
+          />
+          完成后自动跳转详情
+        </label>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+        <div>
+          <AgentPipeline
+            agents={progress.agents}
+            overall={progress.overall_progress}
+            selectedAgent={selectedAgent}
+            onSelect={(name) => {
+              setSelectedAgent(name)
+              setManualSelect(true)
+              setAutoJump(false)
+            }}
+          />
+          <div className="mt-6 flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate('/dashboard')}>
+              返回工作台
+            </Button>
+            <Button
+              disabled={progress.overall_progress < 100}
+              onClick={() => navigate(`/case/${id}`)}
+            >
+              {progress.overall_progress >= 100 ? '查看案例' : '生成中…'}
+            </Button>
+          </div>
+        </div>
+
+        <AgentStepPanel
+          selectedAgent={selectedAgent}
+          stepResults={progress.step_results || []}
+          taskMeta={progress.task_meta}
+          stream={progress.stream}
+        />
       </div>
     </div>
   )

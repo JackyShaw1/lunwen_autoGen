@@ -9,15 +9,22 @@ import { authStore } from '@/stores/authStore'
 export default function Auth() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('teacher@university.edu.cn')
-  const [password, setPassword] = useState('')
+  const [password, setPassword] = useState('demo123')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleLogin = async () => {
     setLoading(true)
+    setError('')
     try {
       const data = await loginApi(email, password)
       authStore.getState().login(data.user, data.access_token)
-      navigate('/dashboard')
+      navigate(data.user.role === 'admin' ? '/admin/agents' : '/dashboard')
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        '登录失败，请检查邮箱与密码'
+      setError(String(msg))
     } finally {
       setLoading(false)
     }
@@ -35,11 +42,22 @@ export default function Auth() {
           </div>
           <div>
             <Label>密码</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="任意密码（演示）" />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="demo123"
+            />
           </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
           <Button className="w-full" onClick={handleLogin} disabled={loading}>
             {loading ? '登录中…' : '登录'}
           </Button>
+          <p className="text-center text-xs text-gray-400">
+            教师：teacher@university.edu.cn / demo123
+            <br />
+            管理员：admin@university.edu.cn / admin123
+          </p>
         </div>
       </Card>
     </div>

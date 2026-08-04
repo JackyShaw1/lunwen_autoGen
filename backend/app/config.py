@@ -1,11 +1,16 @@
-from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_name: str = "CaseAutoGenSystem"
     debug: bool = True
@@ -29,15 +34,19 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
 
-@lru_cache
 def get_settings() -> Settings:
+    """每次从绝对路径 .env 读取最新配置。"""
     s = Settings()
     if not s.agents_dir:
         s.agents_dir = str(Path(__file__).resolve().parent / "agents")
-    if s.openai_api_key and s.use_mock_generation is True:
-        # 可通过环境变量 USE_MOCK_GENERATION=false 启用真实 LLM
-        pass
     return s
 
 
-settings = get_settings()
+class _SettingsProxy:
+    """属性访问时动态读 .env，避免进程内缓存导致一直走 Mock。"""
+
+    def __getattr__(self, name: str):
+        return getattr(get_settings(), name)
+
+
+settings = _SettingsProxy()

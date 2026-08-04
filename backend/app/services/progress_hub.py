@@ -16,8 +16,14 @@ class ProgressHub:
         await ws.accept()
         async with self._lock:
             self._channels.setdefault(task_id, set()).add(ws)
-        if task_id in self._state:
-            await ws.send_json(self._state[task_id])
+            snapshot = self._state.get(task_id)
+        if snapshot:
+            try:
+                await ws.send_json(snapshot)
+            except Exception:
+                async with self._lock:
+                    self._channels.get(task_id, set()).discard(ws)
+                return
 
     async def unsubscribe(self, task_id: str, ws: WebSocket) -> None:
         async with self._lock:
@@ -28,11 +34,17 @@ class ProgressHub:
 
     async def publish(self, task_id: str, message: dict[str, Any]) -> None:
         async with self._lock:
-            self._state[task_id] = message
+            prev = self._state.get(task_id) or {}
+            # 未带 stream 的进度帧保留上一帧 stream，避免轮询间隙右侧空白
+            merged = {**prev, **message}
+            if "stream" not in message and "stream" in prev:
+                merged["stream"] = prev["stream"]
+            self._state[task_id] = merged
             sockets = list(self._channels.get(task_id, set()))
+            out = merged
         for ws in sockets:
             try:
-                await ws.send_json(message)
+                await ws.send_json(out)
             except Exception:
                 pass
 

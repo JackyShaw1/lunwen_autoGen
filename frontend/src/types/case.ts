@@ -100,8 +100,23 @@ export interface AgentProgressItem {
   name: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   duration_ms?: number
+  token_usage?: number
   progress?: number
   output_summary?: string
+}
+
+export interface AgentStepResult {
+  agent: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  summary?: string
+  input?: {
+    task?: Record<string, unknown>
+    hint?: string
+  }
+  output?: Record<string, unknown> | null
+  focus?: Record<string, unknown> | null
+  duration_ms?: number | null
+  token_usage?: number | null
 }
 
 export interface AgentProgressMessage {
@@ -110,4 +125,13 @@ export interface AgentProgressMessage {
   current_agent?: string
   agents: AgentProgressItem[]
   estimated_remaining_seconds?: number
+  step_results?: AgentStepResult[]
+  task_meta?: Record<string, unknown>
+  /** 后端流式打字推送（与进度同步） */
+  stream?: {
+    agent: string
+    text: string
+    done: boolean
+  }
+  error?: string
 }

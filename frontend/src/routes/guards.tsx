@@ -9,9 +9,12 @@ export function AuthGuard() {
 }
 
 export function AdminGuard() {
-  if (!authStore.getState().isAuthenticated()) {
+  const { isAuthenticated, user } = authStore.getState()
+  if (!isAuthenticated()) {
     return <Navigate to="/auth" replace />
   }
-  // MVP: allow all authenticated users to view admin for demo
+  if (user?.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />
+  }
   return <Outlet />
 }

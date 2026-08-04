@@ -1,10 +1,32 @@
 import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
+import { downloadExport, exportCase } from '@/features/cases/api'
 
 export default function Export() {
+  const { id } = useParams<{ id: string }>()
   const [format, setFormat] = useState<'docx' | 'pdf'>('docx')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleDownload = async () => {
+    if (!id) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await exportCase(id, format)
+      await downloadExport(id, res.export_id, `case-package.${format}`)
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        '导出失败，请确认案例已生成'
+      setError(String(msg))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="max-w-4xl">
@@ -29,7 +51,7 @@ export default function Export() {
               format === 'docx' ? 'border-primary bg-primary-light' : 'border-gray-200',
             )}
           >
-            <h4 className="font-semibold">📄 Word 授课包 (.docx)</h4>
+            <h4 className="font-semibold">Word 授课包 (.docx)</h4>
             <p className="text-xs text-gray-500">可编辑，合并排版</p>
           </button>
           <button
@@ -40,12 +62,12 @@ export default function Export() {
               format === 'pdf' ? 'border-primary bg-primary-light' : 'border-gray-200',
             )}
           >
-            <h4 className="font-semibold">📕 PDF 文档 (.pdf)</h4>
-            <p className="text-xs text-gray-500">只读，适合打印分发</p>
+            <h4 className="font-semibold">PDF 文档 (.pdf)</h4>
+            <p className="text-xs text-gray-500">适合打印分发（中文建议优先 Word）</p>
           </button>
-          <p className="text-xs text-gray-500">导出格式仅支持 Word 与 PDF</p>
-          <Button className="mt-4 w-full" size="lg">
-            ⬇ 下载 {format === 'docx' ? 'Word' : 'PDF'}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <Button className="mt-4 w-full" size="lg" disabled={loading} onClick={handleDownload}>
+            {loading ? '导出中…' : `下载 ${format === 'docx' ? 'Word' : 'PDF'}`}
           </Button>
         </div>
       </div>

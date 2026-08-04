@@ -76,6 +76,7 @@ def dashboard_stats(
         .all()
     )
     avg_gen_min = (sum(l.duration_ms for l in logs) / len(logs) / 60000) if logs else 0.0
+    regenerate_count = sum(1 for l in logs if l.round and l.round > 0)
 
     dq_total = 0
     for t in tasks:
@@ -113,7 +114,7 @@ def dashboard_stats(
         export_count=export_count,
         avg_generation_minutes=round(avg_gen_min, 1),
         discussion_questions_total=dq_total,
-        agent_regenerate_count=0,
+        agent_regenerate_count=regenerate_count,
         quota_remaining=user.quota_remaining,
         subject_distribution=subject_dist,
         status_distribution=status_dist,

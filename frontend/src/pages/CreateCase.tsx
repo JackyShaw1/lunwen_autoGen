@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,6 +16,7 @@ const schema = z.object({
   difficulty: z.string(),
   target_audience: z.string(),
   target_words: z.coerce.number().min(1500).max(5000),
+  class_hours: z.coerce.number().min(1).max(8).default(2),
   workflow_template: z.string(),
   learning_objectives: z.array(z.object({ value: z.string().min(1) })).min(1),
   special_requirements: z.string().optional(),
@@ -34,6 +36,7 @@ export default function CreateCase() {
       difficulty: '中级',
       target_audience: '本科',
       target_words: 2800,
+      class_hours: 2,
       workflow_template: 'sequential_standard',
       learning_objectives: [
         { value: '分析组织变革中不同利益相关方的立场与诉求' },
@@ -43,21 +46,35 @@ export default function CreateCase() {
     },
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'learning_objectives' })
+  const [submitError, setSubmitError] = useState('')
 
   const onSubmit = async (data: FormValues) => {
-    const task = await createCase({
-      title: data.title,
-      subject: data.subject,
-      course_name: data.course_name,
-      case_type: data.case_type,
-      difficulty: data.difficulty,
-      target_audience: data.target_audience,
-      target_words: data.target_words,
-      workflow_template: data.workflow_template,
-      learning_objectives: data.learning_objectives.map((o) => o.value),
-      special_requirements: data.special_requirements,
-    })
-    navigate(`/case/${task.id}/generate`)
+    setSubmitError('')
+    try {
+      const task = await createCase({
+        title: data.title,
+        subject: data.subject,
+        course_name: data.course_name,
+        case_type: data.case_type,
+        difficulty: data.difficulty,
+        target_audience: data.target_audience,
+        target_words: data.target_words,
+        class_hours: data.class_hours,
+        workflow_template: data.workflow_template,
+        learning_objectives: data.learning_objectives.map((o) => o.value),
+        special_requirements: data.special_requirements,
+      })
+      navigate(`/case/${task.id}/generate`)
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('；')
+            : '创建失败，请确认已登录且后端可用'
+      setSubmitError(msg)
+    }
   }
 
   return (
@@ -106,7 +123,7 @@ export default function CreateCase() {
                 </Select>
               </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <Label>难度</Label>
                 <Select {...register('difficulty')}>
@@ -118,6 +135,10 @@ export default function CreateCase() {
               <div>
                 <Label>案例正文字数</Label>
                 <Input type="number" {...register('target_words')} />
+              </div>
+              <div>
+                <Label>课时建议</Label>
+                <Input type="number" {...register('class_hours')} />
               </div>
             </div>
           </div>
@@ -153,6 +174,7 @@ export default function CreateCase() {
           </div>
         </Card>
 
+        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate('/dashboard')}>取消</Button>
           <Button type="submit" size="lg" disabled={isSubmitting}>启动 AutoGen 生成 →</Button>
