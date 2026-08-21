@@ -49,7 +49,7 @@ function mergeProgress(
 
 /**
  * 进度订阅：HTTP 轮询为主（可靠拿到 stream），WebSocket 为辅加速。
- * 开发环境 WS 直连 :8000，避免 Vite 代理丢消息。
+ * WebSocket 走当前站点同源地址，由 Vite 在开发环境代理到后端。
  */
 export function useGenerationWs(caseId: string | undefined) {
   const [progress, setProgress] = useState<AgentProgressMessage | null>(INITIAL)

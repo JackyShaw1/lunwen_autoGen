@@ -1,6 +1,6 @@
 # CaseAutoGenSystem Cursor 实现步骤与提示词
 
-> **文档版本**：v2.0  
+> **文档版本**：v2.1
 > **项目定位**：基于 AutoGen 的**教学案例自动生成系统**（非论文生成）  
 > **使用方式**：按 Phase 将提示词复制到 Cursor Agent 执行
 
@@ -196,6 +196,7 @@ TeacherProxy → CasePlanner → DomainExpert → CaseWriter → PedagogyDesigne
 表单字段完全对齐 @docs/02-产品需求文档PRD.md F01：
 - 案例主题、学科、课程、适用对象、案例类型、难度
 - 教学目标（动态添加多条）
+- 一键生成 3 条教学目标；按案例类型应用金字塔、系统思维、3W1H 或伦理权衡逻辑，支持换一组与人工编辑
 - 字数范围、课时、特殊要求
 - Agent 编排模板选择：标准流水线(sequential) / 深度评审(groupchat)
 
@@ -231,8 +232,8 @@ Tab 切换：案例正文 | 讨论题 | 教师参考 | 教学目标对齐
 - 从 case_packages.package JSON 渲染
 - Markdown 预览 + 编辑
 - 保存 PUT /api/cases/{id}/package（version+1）
-- 按钮：「仅重跑 Pedagogy Agent」「仅重跑 Reviewer」
-  调用 POST /api/cases/{id}/regenerate {"agent": "PedagogyDesigner"}
+- 长正文按章节、段落、时间线和决策点提示分区排版
+- 只保留统一编辑保存与版本递增，不实现局部 Agent 重跑，避免四件套内容错配
 
 UI 参照 @docs/03-产品原型.html P06
 ```
@@ -277,19 +278,20 @@ UI 参照 @docs/03-产品原型.html P06
 **提示词**：
 
 ```
-实现导出（仅支持 Word 与 PDF，不支持 Markdown / JSON 等其他格式）：
+实现 Word、PDF 与 PPTX 导出（不暴露内部 Markdown / JSON）：
 
 backend/app/services/export_service.py
 1. Word (.docx)：封面 + 案例正文 + 讨论题 + 教师参考 + 目标对齐表（python-docx）
-2. PDF (.pdf)：由 Word 转 PDF（docx2pdf 或 LibreOffice headless / WeasyPrint）
+2. PDF (.pdf)：独立中文排版，支持长正文分页、页眉页脚和表格
+3. PPTX (.pptx)：按教学节奏重组内容（python-pptx），支持三种主题、三种密度、教师/学生版
 
 POST /api/cases/{id}/export
-  请求体：{ "format": "docx" | "pdf" }  // 仅此两种，其他值返回 400
+  请求体：{ "format": "docx" | "pdf" | "pptx", "ppt_options": {...} }
   响应：文件下载 URL 或流式响应
 
 前端 Export 页参照 @docs/03-产品原型.html P08：
-- 格式单选：Word / PDF
-- 两个下载按钮或根据选择导出
+- 格式单选：Word / PDF / PPTX
+- PPT 显示主题、密度、受众配置，并通过 `/ppt-outline` 预览目录
 
 导出文件页脚强制包含虚构情境声明。
 ```
@@ -403,7 +405,7 @@ GroupChat 出现 Agent 循环发言、无法终止。
 ### Phase 3
 - [ ] GroupChat 修订可用
 - [ ] 评测脚本可运行
-- [ ] Word / PDF 导出正常
+- [ ] Word / PDF / PPTX 导出正常，文件名包含案例主题与版本号
 
 ### Phase 4
 - [ ] 管理员可改 Agent Prompt
@@ -411,4 +413,4 @@ GroupChat 出现 Agent 循环发言、无法终止。
 
 ---
 
-*提示词 v2.0 已对齐 AutoGen 教学案例自动生成系统。*
+*提示词 v2.1 已按当前五 Agent、Skills、质量门禁与三格式导出方案更新。*

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { AgentPipeline } from '@/features/generation/AgentPipeline'
+import { AgentPipeline, AGENT_LABELS } from '@/features/generation/AgentPipeline'
 import { AgentStepPanel } from '@/features/generation/AgentStepPanel'
 import { useGenerationWs } from '@/features/generation/useGenerationWs'
 import { fetchCaseStatus, startGeneration } from '@/features/cases/api'
@@ -76,13 +76,13 @@ export default function GenerationMonitor() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">{title}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Sequential 五 Agent 流水线
+            五个专业角色正在依次完成策划、写作与质量评审
             {remain != null && remain > 0 ? ` · 预计剩余约 ${Math.ceil(remain / 60)} 分钟` : ''}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge variant="teal">整体进度 {progress.overall_progress}%</Badge>
-            {progress.current_agent && <Badge variant="yellow">当前 {progress.current_agent}</Badge>}
-            {streaming && <Badge variant="blue">打字输出 {progress.stream!.agent}</Badge>}
+            {progress.current_agent && <Badge variant="yellow">当前：{AGENT_LABELS[progress.current_agent] || progress.current_agent}</Badge>}
+            {streaming && <Badge variant="blue">正在形成阶段产出</Badge>}
           </div>
         </div>
         <label className="flex items-center gap-2 text-xs text-gray-500">

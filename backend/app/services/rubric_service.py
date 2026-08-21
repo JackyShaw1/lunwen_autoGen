@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -12,7 +13,11 @@ def score_package(package: dict[str, Any]) -> dict[str, Any]:
     objectives = package.get("learning_objectives") or []
     alignment = package.get("alignment_matrix") or []
     guide = package.get("instructor_guide") or {}
-    narrative = (body.get("narrative") or "") + (body.get("background") or "")
+    body_text = "".join(
+        str(body.get(key) or "") for key in ("background", "narrative", "decision_point")
+    )
+    actual_words = len(re.sub(r"\s+", "", body_text))
+    target_words = int((package.get("meta") or {}).get("target_words") or 0)
 
     # 对齐度：目标与对齐表
     alignment_score = 3.0
@@ -44,13 +49,17 @@ def score_package(package: dict[str, Any]) -> dict[str, Any]:
     parts = sum(1 for k in ("background", "narrative", "decision_point") if body.get(k))
     structure = {0: 2.5, 1: 3.2, 2: 3.8, 3: 4.4}.get(parts, 3.0)
 
-    # 可读性：篇幅
+    # 可读性：正文是否兑现用户设定的目标篇幅
     readability = 3.5
-    n = len(narrative)
-    if 800 <= n <= 6000:
+    ratio = actual_words / target_words if target_words else 0
+    if target_words and 0.95 <= ratio <= 1.05:
+        readability = 4.5
+    elif target_words and 0.85 <= ratio <= 1.15:
         readability = 4.3
-    elif n > 400:
+    elif target_words and 0.7 <= ratio <= 1.3:
         readability = 4.0
+    elif not target_words and 800 <= actual_words <= 6000:
+        readability = 4.3
 
     if guide.get("teaching_flow") and guide.get("key_points"):
         structure = min(5.0, structure + 0.2)
@@ -71,6 +80,14 @@ def score_package(package: dict[str, Any]) -> dict[str, Any]:
         issues.append("讨论题少于 4 题")
     if not alignment:
         issues.append("目标对齐表为空")
+    if target_words and actual_words < target_words * 0.95:
+        issues.append(f"案例正文仅 {actual_words} 字，未达到 {target_words} 字目标")
+    elif target_words and actual_words > target_words * 1.05:
+        issues.append(f"案例正文 {actual_words} 字，超出 {target_words} 字目标")
+
+    meta = package.setdefault("meta", {})
+    meta["actual_words"] = actual_words
+    meta["word_count_scope"] = "背景、案例叙述与决策点的可见字符（不计空白）"
 
     summary = (
         f"Rubric 综合 {overall}。"

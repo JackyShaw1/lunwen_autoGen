@@ -63,11 +63,11 @@ def dashboard_stats(
         .filter(CaseTask.user_id == user.id, ExportRecord.created_at >= since)
         .all()
     )
-    export_count = {"docx": 0, "pdf": 0, "total": 0}
+    export_count = {"docx": 0, "pdf": 0, "pptx": 0, "total": 0}
     for e in exports:
         if e.format in export_count:
             export_count[e.format] += 1
-    export_count["total"] = export_count["docx"] + export_count["pdf"]
+    export_count["total"] = export_count["docx"] + export_count["pdf"] + export_count["pptx"]
 
     logs = (
         db.query(AgentRunLog)

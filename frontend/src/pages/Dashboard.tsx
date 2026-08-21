@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { ArrowRight, BookOpen, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { StatsCards } from '@/features/dashboard/StatsCards'
-import { SubjectChart, StatusChart, TrendChart } from '@/features/dashboard/Charts'
+import { SubjectChart, TrendChart } from '@/features/dashboard/Charts'
 import { CaseList } from '@/features/cases/CaseList'
 import { fetchCases, fetchDashboardStats } from '@/features/cases/api'
 import type { StatsRange } from '@/types/case'
@@ -28,10 +28,11 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">你好，{user?.name || '老师'} 👋</h2>
-          <p className="text-sm text-gray-500">本学期教学案例生成与使用数据一览</p>
+          <p className="text-sm font-semibold text-primary">教学工作台</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">你好，{user?.name || '老师'}</h1>
+          <p className="mt-2 text-sm text-slate-500">继续完善课程资产，或从一个新的教学目标开始。</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1 rounded-full border border-gray-200 bg-white p-1">
@@ -46,37 +47,25 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          <Button onClick={() => navigate('/case/new')}>+ 创建案例</Button>
+          <Button onClick={() => navigate('/case/new')}><Sparkles size={16} />创建新案例</Button>
         </div>
       </div>
 
       <StatsCards stats={stats} />
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+      <div className="mt-6 grid gap-4 lg:grid-cols-[.8fr_1.2fr]">
         <SubjectChart data={stats.subject_distribution} />
-        <StatusChart data={stats.status_distribution} />
         <TrendChart data={stats.monthly_trend} />
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[
-          { label: '平均生成耗时', value: `${stats.avg_generation_minutes} 分钟` },
-          { label: '讨论题总数', value: `${stats.discussion_questions_total} 题` },
-          { label: '局部 Agent 重跑', value: `${stats.agent_regenerate_count} 次` },
-          { label: '剩余生成额度', value: `${stats.quota_remaining} 次`, highlight: true },
-        ].map((item) => (
-          <Card key={item.label} className={`p-4 ${item.highlight ? 'border-primary' : ''}`}>
-            <div className="text-xs text-gray-500">{item.label}</div>
-            <div className={`mt-1 text-xl font-bold ${item.highlight ? 'text-primary' : ''}`}>{item.value}</div>
-          </Card>
-        ))}
+      <div className="mt-9 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-200/70 text-slate-600"><BookOpen size={18} /></span>
+          <div><h2 className="font-bold text-slate-900">最近案例</h2><p className="text-xs text-slate-500">按最近更新时间排列</p></div>
+        </div>
+        {cases.length > 0 && <button type="button" className="flex items-center gap-1 text-sm font-semibold text-primary">查看全部 <ArrowRight size={15} /></button>}
       </div>
-
-      <div className="mt-8 flex items-center justify-between">
-        <h3 className="font-semibold">最近案例</h3>
-        <span className="text-sm text-gray-500">共 {cases.length} 个</span>
-      </div>
-      <div className="mt-3">
+      <div className="mt-4">
         <CaseList cases={cases} />
       </div>
     </div>

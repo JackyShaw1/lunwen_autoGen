@@ -1,0 +1,6 @@
+interface:
+  display_name: "教学设计规划"
+  short_description: "生成并校验教学目标、讨论阶梯、课时安排和目标对齐关系"
+  default_prompt: "使用 $design-instructional-plan 设计可观察、可评价的教学方案。"
+policy:
+  allow_implicit_invocation: true

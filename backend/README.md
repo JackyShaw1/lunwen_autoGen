@@ -15,33 +15,33 @@ pip install -r requirements.txt
 copy .env.example .env
 
 # 启动（默认 Mock 生成，无需 OpenAI Key）
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m app.main
 ```
 
-- API 文档：http://localhost:8000/docs
-- 健康检查：http://localhost:8000/api/health
+- API 文档：http://localhost:8010/docs
+- 健康检查：http://localhost:8010/api/health
 
-配合前端：`cd frontend && npm run dev`（代理 `/api` 与 `/ws` 到 8000）
+配合前端：`cd frontend && npm run dev`（代理 `/api` 与 `/ws` 到 8010）
 
-## 演示账号
+## 用户注册
 
-| 邮箱 | 角色 | 密码 |
-|------|------|------|
-| `teacher@university.edu.cn` | teacher | `demo123` |
-| `admin@university.edu.cn` | admin | `admin123` |
+登录页支持公开注册教师账号，初始额度为 5 次。管理员账号不能通过公开注册获得。演示账号默认不创建；仅开发环境明确设置 `SEED_DEMO_USERS=true` 时启用。
 
 ## 主要 API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| POST | `/api/auth/register` | 邮箱注册教师账号 |
 | POST | `/api/auth/login` | 登录 |
+| POST | `/api/auth/refresh` | 使用 HttpOnly Cookie 刷新会话 |
+| POST | `/api/cases/suggest-objectives` | 按课程情境生成 3 条教学目标 |
 | GET | `/api/cases` | 案例列表 |
 | POST | `/api/cases` | 创建案例任务 |
 | POST | `/api/cases/{id}/generate` | 启动生成 |
 | GET | `/api/cases/{id}/status` | 生成状态与日志 |
 | GET/PUT | `/api/cases/{id}/package` | 读取/保存案例包（版本递增） |
-| POST | `/api/cases/{id}/regenerate` | 局部重跑指定 Agent |
-| POST | `/api/cases/{id}/export` | 导出 Word/PDF |
+| POST | `/api/cases/{id}/ppt-outline` | 预览 PPT 课件目录 |
+| POST | `/api/cases/{id}/export` | 导出 Word/PDF/PPTX |
 | GET | `/api/admin/agents` | Agent YAML 列表（管理员） |
 | WS | `/ws/cases/{id}` | 生成进度推送 |
 
@@ -52,7 +52,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 | GET | `/api/cases/{id}/package` | 获取案例四件套 JSON |
 | PUT | `/api/cases/{id}/package` | 保存编辑 |
-| POST | `/api/cases/{id}/export` | 导出 docx/pdf |
+| POST | `/api/cases/{id}/export` | 导出 docx/pdf/pptx |
 | GET | `/api/dashboard/stats` | 工作台统计 |
 | GET | `/api/admin/agents` | Agent 配置列表 |
 | WS | `/ws/cases/{id}` | 生成进度推送 |
@@ -78,9 +78,12 @@ backend/
 ## 生成模式
 
 - **Mock（默认）**：`USE_MOCK_GENERATION=true`，模拟五 Agent 流水线，约 3–5 秒完成。
-- **真实 LLM**：设置 `OPENAI_API_KEY` 且 `USE_MOCK_GENERATION=false`（AutoGen 集成预留）。
+- **真实 LLM**：设置 `OPENAI_API_KEY` 且 `USE_MOCK_GENERATION=false`，按五份 Agent YAML 调用 OpenAI 兼容接口。
 
 ## 导出
 
 - Word：python-docx
-- PDF：优先 docx2pdf（需本机 Word）；失败时回退 reportlab 简易 PDF
+- PDF：ReportLab 中文版式输出
+- PPTX：python-pptx；支持学术/现代/极简主题，简洁/标准/详细密度，教师版/学生版
+
+导出文件统一采用“课程主题_教学案例授课包（或课件）_V版本号”命名。

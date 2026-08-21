@@ -5,10 +5,13 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#0d9488',
-          dark: '#0f766e',
-          light: '#ccfbf1',
+          DEFAULT: '#4f46e5',
+          dark: '#3730a3',
+          light: '#eef2ff',
         },
+      },
+      boxShadow: {
+        soft: '0 10px 35px -15px rgba(15, 23, 42, 0.18)',
       },
     },
   },

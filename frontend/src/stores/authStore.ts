@@ -19,32 +19,23 @@ export interface AuthState {
 
 const STORAGE_KEY = 'case_autogen_auth'
 
-function loadPersisted(): { user: User | null; accessToken: string | null } {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { user: null, accessToken: null }
-    return JSON.parse(raw)
-  } catch {
-    return { user: null, accessToken: null }
-  }
-}
+// 清除旧版本曾持久化的访问令牌；密码从未写入浏览器存储。
+localStorage.removeItem(STORAGE_KEY)
 
 export const authStore = {
   getState: (): AuthState => authState,
 }
 
 let authState: AuthState = {
-  user: loadPersisted().user,
-  accessToken: loadPersisted().accessToken,
+  user: null,
+  accessToken: null,
   login(user, token) {
     authState.user = user
     authState.accessToken = token
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, accessToken: token }))
   },
   logout() {
     authState.user = null
     authState.accessToken = null
-    localStorage.removeItem(STORAGE_KEY)
   },
   isAuthenticated() {
     return !!authState.accessToken

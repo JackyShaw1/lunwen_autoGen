@@ -36,6 +36,9 @@ export interface CasePackage {
     course: string
     difficulty: string
     case_type: string
+    target_words?: number
+    actual_words?: number
+    word_count_scope?: string
     fictional_disclaimer?: string
   }
   learning_objectives: LearningObjective[]
@@ -72,7 +75,7 @@ export interface DashboardStats {
   avg_rubric: number
   avg_rubric_delta: number
   estimated_hours_saved: number
-  export_count: { docx: number; pdf: number; total: number }
+  export_count: { docx: number; pdf: number; pptx: number; total: number }
   avg_generation_minutes: number
   discussion_questions_total: number
   agent_regenerate_count: number

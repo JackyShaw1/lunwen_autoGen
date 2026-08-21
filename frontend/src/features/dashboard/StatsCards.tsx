@@ -1,68 +1,52 @@
+import { BookOpenCheck, Clock3, FileCheck2, Sparkles } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import type { DashboardStats } from '@/types/case'
 
 export function StatsCards({ stats }: { stats: DashboardStats }) {
   const items = [
     {
-      label: '案例总数',
+      label: '全部案例',
       value: stats.total_cases,
-      sub: stats.total_cases_delta > 0 ? `↑ ${stats.total_cases_delta} 较上月` : undefined,
-      trend: stats.total_cases_delta > 0 ? 'up' : undefined,
-      highlight: true,
-      icon: '📋',
+      sub: stats.total_cases_delta > 0 ? `本月新增 ${stats.total_cases_delta} 个` : '持续沉淀课程资产',
+      icon: BookOpenCheck,
+      color: 'bg-indigo-50 text-indigo-600',
     },
     {
-      label: '已定稿',
+      label: '可直接授课',
       value: stats.finalized_count,
-      sub: `完成率 ${stats.completion_rate}%`,
-      icon: '✅',
+      sub: `整体完成率 ${stats.completion_rate}%`,
+      icon: FileCheck2,
+      color: 'bg-emerald-50 text-emerald-600',
     },
     {
-      label: '生成中',
-      value: stats.running_count,
-      sub: 'Agent 协作进行中',
-      icon: '⟳',
+      label: '预计节省时间',
+      value: `${stats.estimated_hours_saved}h`,
+      sub: '按每个案例 8 小时估算',
+      icon: Clock3,
+      color: 'bg-amber-50 text-amber-600',
     },
     {
-      label: '平均 Rubric',
-      value: stats.avg_rubric.toFixed(1),
-      sub: stats.avg_rubric_delta > 0 ? `↑ ${stats.avg_rubric_delta} 较上月` : undefined,
-      trend: stats.avg_rubric_delta > 0 ? 'up' : undefined,
-      icon: '⭐',
-    },
-    {
-      label: '预估节省工时',
-      value: stats.estimated_hours_saved,
-      unit: '小时',
-      sub: '按每案例 8h 估算',
-      icon: '⏱',
-    },
-    {
-      label: '导出次数',
-      value: stats.export_count.total,
-      sub: `Word ${stats.export_count.docx} · PDF ${stats.export_count.pdf}`,
-      icon: '📤',
+      label: '剩余生成额度',
+      value: stats.quota_remaining,
+      sub: stats.quota_remaining > 1 ? '额度充足，可继续创建' : '额度即将用完',
+      icon: Sparkles,
+      color: 'bg-violet-50 text-violet-600',
+      highlight: true,
     },
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      {items.map((item) => (
-        <Card
-          key={item.label}
-          className={item.highlight ? 'border-primary bg-gradient-to-br from-teal-50 to-white' : 'p-4'}
-        >
-          <span className="absolute right-3 top-3 text-xl opacity-40">{item.icon}</span>
-          <div className="text-xs text-gray-500">{item.label}</div>
-          <div className="mt-1 text-2xl font-bold text-gray-900">
-            {item.value}
-            {item.unit && <span className="text-sm font-medium">{item.unit}</span>}
-          </div>
-          {item.sub && (
-            <div className={`mt-1 text-xs ${item.trend === 'up' ? 'font-semibold text-green-600' : 'text-gray-500'}`}>
-              {item.sub}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map(({ label, value, sub, icon: Icon, color, highlight }) => (
+        <Card key={label} className={highlight ? 'border-indigo-200 bg-gradient-to-br from-white to-indigo-50/70' : ''}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-500">{label}</p>
+              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{value}</p>
             </div>
-          )}
+            <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}><Icon size={20} /></span>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">{sub}</p>
         </Card>
       ))}
     </div>

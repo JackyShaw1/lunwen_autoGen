@@ -3,50 +3,87 @@ import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, BookOpenCheck, Check, Clock3, FileText, RefreshCw, Sparkles, Target, Users } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Label, Select, Textarea } from '@/components/ui/Input'
-import { createCase } from '@/features/cases/api'
+import { createCase, suggestLearningObjectives, type ObjectiveSuggestion } from '@/features/cases/api'
 
 const schema = z.object({
-  title: z.string().min(5, '标题至少 5 个字'),
-  subject: z.string(),
-  course_name: z.string().min(1),
+  title: z.string().min(5, '请用至少 5 个字描述案例主题'),
+  subject: z.string().min(1),
+  course_name: z.string().min(1, '请输入课程名称'),
   case_type: z.string(),
   difficulty: z.string(),
   target_audience: z.string(),
   target_words: z.coerce.number().min(1500).max(5000),
   class_hours: z.coerce.number().min(1).max(8).default(2),
   workflow_template: z.string(),
-  learning_objectives: z.array(z.object({ value: z.string().min(1) })).min(1),
+  learning_objectives: z.array(z.object({ value: z.string().min(1, '教学目标不能为空') })).min(1),
   special_requirements: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
 
+function SectionTitle({ icon: Icon, step, title, desc }: { icon: typeof Target; step: string; title: string; desc: string }) {
+  return (
+    <div className="mb-6 flex gap-3 border-b border-slate-100 pb-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-primary"><Icon size={20} /></span>
+      <div><p className="text-xs font-bold uppercase tracking-wider text-primary">步骤 {step}</p><h2 className="mt-0.5 font-bold text-slate-900">{title}</h2><p className="mt-1 text-xs text-slate-500">{desc}</p></div>
+    </div>
+  )
+}
+
 export default function CreateCase() {
   const navigate = useNavigate()
-  const { register, control, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, control, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      title: '制造企业数字化转型中的组织阻力',
+      title: '',
       subject: '管理学',
-      course_name: '组织行为学',
+      course_name: '',
       case_type: '决策型',
       difficulty: '中级',
       target_audience: '本科',
       target_words: 2800,
       class_hours: 2,
       workflow_template: 'sequential_standard',
-      learning_objectives: [
-        { value: '分析组织变革中不同利益相关方的立场与诉求' },
-        { value: '识别数字化转型中的典型阻力来源' },
-      ],
-      special_requirements: '希望突出中层与一线员工的立场冲突，适合 2 课时讨论。',
+      learning_objectives: [{ value: '' }],
+      special_requirements: '',
     },
   })
-  const { fields, append, remove } = useFieldArray({ control, name: 'learning_objectives' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'learning_objectives' })
   const [submitError, setSubmitError] = useState('')
+  const [objectiveError, setObjectiveError] = useState('')
+  const [objectiveSuggestion, setObjectiveSuggestion] = useState<ObjectiveSuggestion | null>(null)
+  const [objectiveVariant, setObjectiveVariant] = useState(0)
+  const [isSuggesting, setIsSuggesting] = useState(false)
+  const values = watch()
+  const contextReady = values.title.trim().length >= 5 && values.course_name.trim().length > 0
+
+  const generateObjectives = async () => {
+    if (!contextReady || isSuggesting) return
+    setObjectiveError('')
+    setIsSuggesting(true)
+    try {
+      const suggestion = await suggestLearningObjectives({
+        title: values.title,
+        subject: values.subject,
+        course_name: values.course_name,
+        case_type: values.case_type,
+        difficulty: values.difficulty,
+        target_audience: values.target_audience,
+        variant: objectiveVariant,
+      })
+      replace(suggestion.objectives.map((value) => ({ value })))
+      setObjectiveSuggestion(suggestion)
+      setObjectiveVariant((current) => current + 1)
+    } catch {
+      setObjectiveError('教学目标生成失败，请稍后重试；你仍可直接手动填写。')
+    } finally {
+      setIsSuggesting(false)
+    }
+  }
 
   const onSubmit = async (data: FormValues) => {
     setSubmitError('')
@@ -67,118 +104,112 @@ export default function CreateCase() {
       navigate(`/case/${task.id}/generate`)
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      const msg =
-        typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('；')
-            : '创建失败，请确认已登录且后端可用'
-      setSubmitError(msg)
+      setSubmitError(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((d: { msg?: string }) => d.msg || '').join('；') : '创建失败，请稍后重试')
     }
   }
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-bold">配置教学案例任务</h1>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
-          <h3 className="mb-4 border-b pb-2 font-semibold">基本信息</h3>
-          <div className="space-y-4">
-            <div>
-              <Label>案例主题</Label>
-              <Input {...register('title')} />
-              {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title.message}</p>}
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
+    <div>
+      <button type="button" onClick={() => navigate('/dashboard')} className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"><ArrowLeft size={16} />返回工作台</button>
+      <div className="mb-8 max-w-3xl">
+        <p className="text-sm font-semibold text-primary">新建教学案例</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">告诉 AI 教研团队，你想解决什么教学问题</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-500">清晰的学习目标比冗长的背景材料更重要。填写完成后仍可修改，不必一次做到完美。</p>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="grid items-start gap-7 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6">
+          <Card>
+            <SectionTitle icon={BookOpenCheck} step="1/3" title="定义课程情境" desc="让系统理解这份案例服务于哪门课、哪类学生" />
+            <div className="space-y-5">
               <div>
-                <Label>学科分类</Label>
-                <Select {...register('subject')}>
-                  <option>管理学</option>
-                  <option>经济学</option>
-                  <option>计算机科学</option>
-                  <option>法学</option>
-                </Select>
+                <Label>案例主题 <span className="text-red-500">*</span></Label>
+                <Input {...register('title')} placeholder="例如：制造企业数字化转型中的组织阻力" />
+                <p className="mt-1.5 text-xs text-slate-400">建议包含具体主体、变化或需要决策的矛盾</p>
+                {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title.message}</p>}
               </div>
-              <div>
-                <Label>课程名称</Label>
-                <Input {...register('course_name')} />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div><Label>学科分类</Label><Select {...register('subject')}><option>管理学</option><option>经济学</option><option>计算机科学</option><option>法学</option></Select></div>
+                <div><Label>课程名称 <span className="text-red-500">*</span></Label><Input {...register('course_name')} placeholder="例如：组织行为学" />{errors.course_name && <p className="mt-1 text-xs text-red-600">{errors.course_name.message}</p>}</div>
               </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>案例类型</Label>
-                <Select {...register('case_type')}>
-                  <option>决策型</option>
-                  <option>分析型</option>
-                  <option>情境模拟</option>
-                  <option>问题诊断</option>
-                </Select>
-              </div>
-              <div>
-                <Label>适用对象</Label>
-                <Select {...register('target_audience')}>
-                  <option>本科</option>
-                  <option>硕士</option>
-                  <option>企业培训</option>
-                </Select>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div><Label>案例类型</Label><Select {...register('case_type')}><option>决策型</option><option>分析型</option><option>情境模拟</option><option>问题诊断</option></Select></div>
+                <div><Label>适用对象</Label><Select {...register('target_audience')}><option>本科</option><option>硕士</option><option>企业培训</option></Select></div>
+                <div><Label>难度</Label><Select {...register('difficulty')}><option>初级</option><option>中级</option><option>高级</option></Select></div>
               </div>
             </div>
+          </Card>
+
+          <Card>
+            <SectionTitle icon={Target} step="2/3" title="明确学习目标" desc="目标将用于设计冲突、讨论题和课堂活动" />
+            <div className="mb-5 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">根据课程情境生成 3 条目标</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {contextReady ? '点击会替换当前目标；再次点击可更换分析角度，生成后仍可编辑。' : '请先填写至少 5 个字的案例主题和课程名称。'}
+                  </p>
+                </div>
+                <Button type="button" size="sm" disabled={!contextReady || isSuggesting} onClick={generateObjectives}>
+                  {objectiveSuggestion ? <RefreshCw size={15} className={isSuggesting ? 'animate-spin' : ''} /> : <Sparkles size={15} />}
+                  {isSuggesting ? '正在生成…' : objectiveSuggestion ? '重新生成 3 条' : '智能生成 3 条'}
+                </Button>
+              </div>
+              {objectiveSuggestion && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-indigo-100 pt-3 text-xs">
+                  <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-primary">{objectiveSuggestion.framework_name}</span>
+                  <span className="text-slate-500">{objectiveSuggestion.rationale}</span>
+                </div>
+              )}
+              {objectiveError && <p className="mt-3 text-xs text-red-600">{objectiveError}</p>}
+            </div>
+            <div className="space-y-3">
+              {fields.map((field, index) => (
+                <div key={field.id}>
+                  <div className="flex gap-2">
+                    <span className="mt-2.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">{index + 1}</span>
+                    <Input {...register(`learning_objectives.${index}.value`)} placeholder={index === 0 ? '例如：分析不同利益相关方的立场与诉求' : '补充另一个可观察、可评价的学习目标'} />
+                    {fields.length > 1 && <Button type="button" variant="ghost" size="sm" aria-label="删除目标" onClick={() => remove(index)}>×</Button>}
+                  </div>
+                  {errors.learning_objectives?.[index]?.value && <p className="ml-8 mt-1 text-xs text-red-600">{errors.learning_objectives[index]?.value?.message}</p>}
+                </div>
+              ))}
+            </div>
+            <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ value: '' })}>+ 添加教学目标</Button>
+          </Card>
+
+          <Card>
+            <SectionTitle icon={Sparkles} step="3/3" title="设定产出偏好" desc="控制篇幅、课堂节奏与 AI 协作深度" />
             <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>难度</Label>
-                <Select {...register('difficulty')}>
-                  <option>初级</option>
-                  <option>中级</option>
-                  <option>高级</option>
-                </Select>
-              </div>
-              <div>
-                <Label>案例正文字数</Label>
-                <Input type="number" {...register('target_words')} />
-              </div>
-              <div>
-                <Label>课时建议</Label>
-                <Input type="number" {...register('class_hours')} />
-              </div>
+              <div><Label>案例正文字数</Label><Input type="number" {...register('target_words')} /></div>
+              <div><Label>计划课时</Label><Input type="number" {...register('class_hours')} /></div>
+              <div><Label>生成模式</Label><Select {...register('workflow_template')}><option value="sequential_standard">标准生成</option><option value="groupchat_review">深度评审</option></Select></div>
             </div>
-          </div>
-        </Card>
+            <div className="mt-5"><Label>需要特别关注的要求</Label><Textarea rows={4} {...register('special_requirements')} placeholder="例如：突出中层与一线员工的立场冲突；避免出现真实企业名称……" /><p className="mt-1.5 text-xs text-slate-400">选填。可以说明希望强调或避免的内容。</p></div>
+          </Card>
 
-        <Card>
-          <h3 className="mb-4 border-b pb-2 font-semibold">教学目标</h3>
-          {fields.map((field, index) => (
-            <div key={field.id} className="mb-2 flex gap-2">
-              <Input {...register(`learning_objectives.${index}.value`)} />
-              <Button type="button" variant="outline" size="sm" onClick={() => remove(index)}>×</Button>
-            </div>
-          ))}
-          <Button type="button" variant="outline" size="sm" onClick={() => append({ value: '' })}>
-            + 添加教学目标
-          </Button>
-        </Card>
-
-        <Card>
-          <h3 className="mb-4 border-b pb-2 font-semibold">AutoGen 编排</h3>
-          <div className="space-y-4">
-            <div>
-              <Label>Agent 工作流模板</Label>
-              <Select {...register('workflow_template')}>
-                <option value="sequential_standard">标准流水线（Sequential 五 Agent）</option>
-                <option value="groupchat_review">深度评审（GroupChat 多轮修订）</option>
-              </Select>
-            </div>
-            <div>
-              <Label>特殊要求</Label>
-              <Textarea rows={3} {...register('special_requirements')} />
-            </div>
-          </div>
-        </Card>
-
-        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => navigate('/dashboard')}>取消</Button>
-          <Button type="submit" size="lg" disabled={isSubmitting}>启动 AutoGen 生成 →</Button>
+          {submitError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{submitError}</div>}
         </div>
+
+        <aside className="space-y-4 xl:sticky xl:top-8">
+          <Card className="border-indigo-200 bg-gradient-to-br from-white to-indigo-50/70">
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">生成摘要</p>
+            <h2 className="mt-2 line-clamp-2 font-bold text-slate-900">{values.title || '尚未填写案例主题'}</h2>
+            <div className="mt-5 space-y-3 text-sm text-slate-600">
+              <div className="flex items-center gap-2"><Users size={16} className="text-slate-400" />{values.target_audience} · {values.difficulty}</div>
+              <div className="flex items-center gap-2"><Clock3 size={16} className="text-slate-400" />{values.class_hours || 0} 课时 · 约 {values.target_words || 0} 字</div>
+              <div className="flex items-center gap-2"><Target size={16} className="text-slate-400" />{values.learning_objectives?.filter((o) => o.value).length || 0} 个学习目标</div>
+            </div>
+            <div className="my-5 border-t border-indigo-100" />
+            <p className="text-xs font-semibold text-slate-500">将生成</p>
+            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+              {['案例正文与决策点', '分层讨论题', '教师参考手册', '教学目标对齐表'].map((item) => <li key={item} className="flex items-center gap-2"><Check size={15} className="text-emerald-600" />{item}</li>)}
+            </ul>
+          </Card>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-500"><div className="flex gap-2"><FileText size={16} className="mt-0.5 shrink-0 text-primary" /><span>启动后可实时查看各专业角色的产出；完成后所有内容仍可编辑。</span></div></div>
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>{isSubmitting ? '正在创建任务…' : <><Sparkles size={18} />开始生成授课包</>}</Button>
+          <Button type="button" variant="ghost" className="w-full" onClick={() => navigate('/dashboard')}>取消并返回</Button>
+        </aside>
       </form>
     </div>
   )

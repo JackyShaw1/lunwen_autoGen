@@ -1,12 +1,32 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    remember_me: bool = False
+
+
+class RegisterRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    remember_me: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        return " ".join(value.split())
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        if not any(char.isalpha() for char in value) or not any(char.isdigit() for char in value):
+            raise ValueError("密码必须同时包含字母和数字")
+        return value
 
 
 class UserOut(BaseModel):
@@ -39,6 +59,23 @@ class CreateCaseRequest(BaseModel):
     special_requirements: str | None = None
 
 
+class ObjectiveSuggestionRequest(BaseModel):
+    title: str = Field(min_length=5, max_length=500)
+    subject: str
+    course_name: str = Field(min_length=1, max_length=200)
+    case_type: str = "决策型"
+    difficulty: str = "中级"
+    target_audience: str = "本科"
+    variant: int = Field(default=0, ge=0, le=1000)
+
+
+class ObjectiveSuggestionResponse(BaseModel):
+    framework: str
+    framework_name: str
+    rationale: str
+    objectives: list[str]
+
+
 class CaseTaskOut(BaseModel):
     id: str
     title: str
@@ -56,18 +93,27 @@ class CaseTaskOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RegenerateRequest(BaseModel):
-    agent: str = Field(description="PedagogyDesigner | Reviewer | CaseWriter 等")
+class PptOptions(BaseModel):
+    theme: Literal["academic", "modern", "minimal"] = "academic"
+    density: Literal["concise", "standard", "detailed"] = "standard"
+    audience: Literal["student", "teacher"] = "teacher"
+
+
+class PptOutlineRequest(PptOptions):
+    pass
 
 
 class ExportRequest(BaseModel):
-    format: Literal["docx", "pdf"]
+    format: Literal["docx", "pdf", "pptx"]
+    ppt_options: PptOptions | None = None
 
 
 class ExportResponse(BaseModel):
     export_id: str
     format: str
     download_url: str
+    filename: str
+    version: int
 
 
 class DashboardStatsOut(BaseModel):

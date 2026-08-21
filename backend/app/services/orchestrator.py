@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -13,9 +14,17 @@ from sqlalchemy.orm import Session
 from app.config import get_settings, settings
 from app.models import AgentConfig, AgentRunLog, CasePackage, CaseTask, User
 from app.services.llm_client import chat_completion, extract_json, llm_available
-from app.services.package_builder import build_structured_package, merge_agent_output
+from app.services.package_builder import (
+    build_structured_package,
+    count_case_body_chars,
+    ensure_mock_body_length,
+    merge_agent_output,
+    normalize_case_package,
+    update_body_length_meta,
+)
 from app.services.progress_hub import progress_hub
 from app.services.rubric_service import score_package
+from app.services.skill_loader import build_agent_skill_context, validate_package_with_skill
 
 import logging
 
@@ -78,24 +87,133 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
     specs = {
         "CasePlanner": (
             "请输出 JSON，字段：outline{background,decision_point,characters[]}，"
-            "learning_objectives[{id,level,description}]。"
+            "learning_objectives[{id,level,description}]。保留教师目标原意并使用 LO1、LO2…编号；"
+            "人物至少 3 个，决策点必须是学生需要完成的具体任务。"
         ),
-        "DomainExpert": "请输出 JSON，字段：domain_notes(string)，characters(可选更新)。",
+        "DomainExpert": (
+            "请输出 JSON，字段：domain_notes(string)，characters(可选更新)。"
+            "domain_notes 必须包含专业机制、可用证据、关键约束和需避免的失真；不要写完整正文。"
+        ),
         "CaseWriter": (
             "请输出 JSON，字段：background, narrative, decision_point, characters[]。"
-            f"叙事总字数约 {task.target_words} 字，适合课堂讨论。"
+            f"硬性要求：background、narrative、decision_point 三个字段合计的可见字符数（不计空白）"
+            f"目标为 {task.target_words} 字，验收范围为 "
+            f"{math.ceil(task.target_words * 0.95)}–{math.floor(task.target_words * 1.05)} 字。"
+            "建议背景占 10%–15%、主体叙事占 75%–80%、决策点占 8%–12%。"
+            "必须通过具体场景、行动、数据、对话和利益冲突充实内容，不得用提纲、重复段落或说明字数凑篇幅；"
+            "正文中不要出现目标字数。只返回合法 JSON。"
         ),
         "PedagogyDesigner": (
             "请输出 JSON，字段：discussion_questions[{level,question,teaching_intent}]（至少5题），"
             "instructor_guide{teaching_flow,key_points[],common_misconceptions[]}，"
             "alignment_matrix[{objective_id,case_section,activity,assessment}]。"
+            "讨论题至少覆盖 3 个认知层级，每个教学目标必须出现在对齐表中；授课流程总时长不得超过任务课时。"
         ),
         "Reviewer": (
             "请输出 JSON，字段：rubric_scores{alignment,authenticity,discussion,structure,readability}，"
-            "overall_score(1-5)，reviewer_summary，issues[]。"
+            "overall_score(1-5)，reviewer_summary，issues[]。overall_score 必须是五项评分的算术平均值并保留1位小数。"
         ),
     }
     return base + specs.get(agent, "请输出与教学案例相关的 JSON。")
+
+
+def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
+    """验证 Agent 间的交接契约，避免无效 JSON 静默流入下游。"""
+    if not isinstance(data, dict) or not data:
+        return ["输出必须是非空 JSON 对象"]
+    if "raw" in data:
+        return ["输出不是可解析的 JSON"]
+
+    errors: list[str] = []
+    if agent == "CasePlanner":
+        outline = data.get("outline")
+        objectives = data.get("learning_objectives")
+        if not isinstance(outline, dict):
+            errors.append("缺少 outline 对象")
+        else:
+            for key in ("background", "decision_point"):
+                if not isinstance(outline.get(key), str) or not outline[key].strip():
+                    errors.append(f"outline.{key} 必须为非空字符串")
+            if not isinstance(outline.get("characters"), list) or len(outline["characters"]) < 3:
+                errors.append("outline.characters 至少包含 3 个角色")
+        if not isinstance(objectives, list) or not objectives:
+            errors.append("learning_objectives 必须为非空数组")
+        else:
+            expected = len(task.learning_objectives or [])
+            if expected and len(objectives) != expected:
+                errors.append(f"learning_objectives 必须保留教师给出的 {expected} 条目标")
+            for index, objective in enumerate(objectives, 1):
+                if not isinstance(objective, dict) or not str(objective.get("description") or "").strip():
+                    errors.append(f"第 {index} 条教学目标缺少 description")
+
+    elif agent == "DomainExpert":
+        if not isinstance(data.get("domain_notes"), str) or not data["domain_notes"].strip():
+            errors.append("domain_notes 必须为非空字符串")
+        if "characters" in data and not isinstance(data["characters"], list):
+            errors.append("characters 必须为数组")
+
+    elif agent == "CaseWriter":
+        for key in ("background", "narrative", "decision_point"):
+            if not isinstance(data.get(key), str) or not data[key].strip():
+                errors.append(f"{key} 必须为非空字符串")
+        if not isinstance(data.get("characters"), list) or len(data["characters"]) < 2:
+            errors.append("characters 至少包含 2 个角色")
+
+    elif agent == "PedagogyDesigner":
+        questions = data.get("discussion_questions")
+        if not isinstance(questions, list) or len(questions) < 5:
+            errors.append("discussion_questions 至少包含 5 题")
+        else:
+            levels = {str(question.get("level") or "") for question in questions if isinstance(question, dict)}
+            if len(levels - {""}) < 3:
+                errors.append("讨论题至少覆盖 3 个认知层级")
+            for index, question in enumerate(questions, 1):
+                if not isinstance(question, dict) or not all(
+                    str(question.get(key) or "").strip() for key in ("level", "question", "teaching_intent")
+                ):
+                    errors.append(f"第 {index} 道讨论题字段不完整")
+        guide = data.get("instructor_guide")
+        if not isinstance(guide, dict) or not str(guide.get("teaching_flow") or "").strip():
+            errors.append("instructor_guide.teaching_flow 必须为非空字符串")
+        matrix = data.get("alignment_matrix")
+        expected = len(task.learning_objectives or [])
+        if not isinstance(matrix, list) or len(matrix) < max(expected, 1):
+            errors.append("alignment_matrix 必须覆盖全部教学目标")
+        elif expected:
+            present = {str(row.get("objective_id") or "") for row in matrix if isinstance(row, dict)}
+            missing = [f"LO{i}" for i in range(1, expected + 1) if f"LO{i}" not in present]
+            if missing:
+                errors.append("alignment_matrix 缺少目标：" + "、".join(missing))
+
+    elif agent == "Reviewer":
+        scores = data.get("rubric_scores")
+        keys = ("alignment", "authenticity", "discussion", "structure", "readability")
+        if not isinstance(scores, dict):
+            errors.append("rubric_scores 必须为对象")
+        else:
+            values: list[float] = []
+            for key in keys:
+                try:
+                    value = float(scores.get(key))
+                except (TypeError, ValueError):
+                    errors.append(f"rubric_scores.{key} 必须是 1–5 的数字")
+                    continue
+                if not 1 <= value <= 5:
+                    errors.append(f"rubric_scores.{key} 超出 1–5")
+                values.append(value)
+            try:
+                overall = float(data.get("overall_score"))
+                if not 1 <= overall <= 5:
+                    errors.append("overall_score 超出 1–5")
+                elif len(values) == 5 and abs(overall - round(sum(values) / 5, 1)) > 0.11:
+                    errors.append("overall_score 不是五项评分的算术平均值")
+            except (TypeError, ValueError):
+                errors.append("overall_score 必须是 1–5 的数字")
+        if not isinstance(data.get("reviewer_summary"), str) or not data["reviewer_summary"].strip():
+            errors.append("reviewer_summary 必须为非空字符串")
+        if not isinstance(data.get("issues"), list):
+            errors.append("issues 必须为数组")
+    return errors
 
 
 async def _run_agent_llm(
@@ -108,27 +226,103 @@ async def _run_agent_llm(
 ) -> tuple[dict[str, Any], str, int]:
     cfg = _load_agent_config(db, agent)
     system = cfg.get("system_prompt") or AGENT_HINTS.get(agent, "")
+    skill_context, _ = build_agent_skill_context(agent, cfg, _task_context(task))
+    if skill_context:
+        system += "\n\n# 本次任务已加载的共享 Skills\n\n" + skill_context
     model_cfg = cfg.get("model") or {}
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": _agent_user_prompt(agent, task, package)},
     ]
+    max_tokens = int(model_cfg.get("max_tokens", 4096))
+    if agent == "CaseWriter":
+        max_tokens = max(max_tokens, min(16000, task.target_words * 2 + 2000))
+    configured_model = str(model_cfg.get("name") or "").strip()
+    use_model = settings.openai_model if configured_model in ("", "inherit") else configured_model
     content = await chat_completion(
         messages,
         temperature=float(model_cfg.get("temperature", 0.7)),
-        max_tokens=int(model_cfg.get("max_tokens", 4096)),
-        model=settings.openai_model,
+        max_tokens=max_tokens,
+        model=use_model,
         on_delta=on_delta,
     )
+    total_content = content
     try:
         data = extract_json(content)
     except Exception:
         data = {"raw": content}
     if not isinstance(data, dict):
         data = {"raw": data}
+    errors = _validate_agent_output(agent, data, task)
+    if errors:
+        correction = (
+            "上一次输出未通过结构契约校验：\n- "
+            + "\n- ".join(errors)
+            + "\n请依据原任务完整重做，只返回满足契约的合法 JSON，不要解释。"
+        )
+        repaired_content = await chat_completion(
+            messages + [{"role": "assistant", "content": content}, {"role": "user", "content": correction}],
+            temperature=min(float(model_cfg.get("temperature", 0.7)), 0.3),
+            max_tokens=max_tokens,
+            model=use_model,
+            on_delta=on_delta,
+        )
+        total_content += repaired_content
+        try:
+            data = extract_json(repaired_content)
+        except Exception as exc:
+            raise ValueError(f"{agent} 纠错后仍未返回合法 JSON") from exc
+        errors = _validate_agent_output(agent, data, task)
+        if errors:
+            raise ValueError(f"{agent} 输出契约校验失败：{'；'.join(errors)}")
+        content = repaired_content
     summary = content[:240].replace("\n", " ")
-    tokens = max(len(content) // 3, 1)
+    tokens = max(len(total_content) // 3, 1)
     return data, summary, tokens
+
+
+async def _repair_casewriter_length(
+    db: Session,
+    task: CaseTask,
+    package: dict[str, Any],
+    *,
+    on_delta: Any = None,
+) -> tuple[dict[str, Any], int]:
+    """让 LLM 对不足篇幅的正文定向扩写；返回最终输出和额外 token 估算。"""
+    minimum = math.ceil(task.target_words * 0.95)
+    maximum = math.floor(task.target_words * 1.05)
+    extra_tokens = 0
+    for attempt in range(2):
+        actual = count_case_body_chars(package)
+        if minimum <= actual <= maximum:
+            break
+        body = package.get("body") or {}
+        prompt = (
+            "你是教学案例正文修订专家。当前正文未通过篇幅验收，请在保留人物、事实逻辑和决策冲突的基础上重写并调整篇幅。\n"
+            f"当前可见字符数：{actual}；目标：{task.target_words}；合格范围：{minimum}–{maximum}。\n"
+            "篇幅不足时重点补充具体场景、行动过程、数据证据、角色对话、利益权衡和逐步升级的冲突；篇幅超出时压缩次要信息。"
+            "不得复制段落、空泛总结或在正文中谈论字数。\n"
+            "只返回 JSON：{background:string,narrative:string,decision_point:string,characters:array}。\n"
+            f"当前正文：\n{yaml.safe_dump(body, allow_unicode=True)}"
+        )
+        cfg = _load_agent_config(db, "CaseWriter")
+        system = cfg.get("system_prompt") or AGENT_HINTS["CaseWriter"]
+        model_cfg = cfg.get("model") or {}
+        configured_model = str(model_cfg.get("name") or "").strip()
+        use_model = settings.openai_model if configured_model in ("", "inherit") else configured_model
+        content = await chat_completion(
+            [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            temperature=0.65,
+            max_tokens=min(16000, task.target_words * 2 + 2000),
+            model=use_model,
+            on_delta=on_delta,
+        )
+        extra_tokens += max(len(content) // 3, 1)
+        repaired = extract_json(content)
+        if not isinstance(repaired, dict):
+            raise ValueError(f"第 {attempt + 1} 次篇幅修订未返回合法 JSON")
+        package = merge_agent_output(package, "CaseWriter", repaired)
+    return package, extra_tokens
 
 
 def _run_agent_mock(agent: str, task: CaseTask, package: dict[str, Any]) -> tuple[dict[str, Any], str, int]:
@@ -152,13 +346,14 @@ def _run_agent_mock(agent: str, task: CaseTask, package: dict[str, Any]) -> tupl
         }
         summary = "已补充学科情境与术语约束"
     elif agent == "CaseWriter":
+        actual = ensure_mock_body_length(package, task)
         data = {
             "background": package["body"]["background"],
             "narrative": package["body"]["narrative"],
             "decision_point": package["body"]["decision_point"],
             "characters": package["body"]["characters"],
         }
-        summary = f"已撰写案例正文（约 {task.target_words} 字目标）"
+        summary = f"案例正文已通过验收：实际 {actual} 字 / 目标 {task.target_words} 字"
     elif agent == "PedagogyDesigner":
         data = {
             "discussion_questions": package["discussion_questions"],
@@ -392,7 +587,7 @@ def _build_agents_state(
     return state
 
 
-async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None) -> None:
+async def run_pipeline(db: Session, task_id: str) -> None:
     task = db.query(CaseTask).filter(CaseTask.id == task_id).first()
     if not task:
         return
@@ -420,12 +615,9 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
         .order_by(CasePackage.version.desc())
         .first()
     )
-    if only_agent and latest and latest.package:
-        package = dict(latest.package)
-        next_version = (latest.version or 1) + 1
-    else:
-        package = build_structured_package(task)
-        next_version = (latest.version + 1) if latest else 1
+    package = build_structured_package(task)
+    next_version = (latest.version + 1) if latest else 1
+    normalize_case_package(package)
 
     use_llm = llm_available()
     logger.warning(
@@ -434,20 +626,21 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
         use_llm,
         get_settings().openai_model if use_llm else "mock",
     )
-    agents = [only_agent] if only_agent else list(AGENT_SEQUENCE)
-    if only_agent and only_agent not in AGENT_SEQUENCE:
-        task.status = "failed"
-        task.error_message = f"未知 Agent: {only_agent}"
-        db.commit()
-        return
+    agents = list(AGENT_SEQUENCE)
 
     total = len(AGENT_SEQUENCE)
     step_results: list[dict[str, Any]] = []
     step_map: dict[str, dict[str, Any]] = {}
+    skill_trace: dict[str, list[dict[str, Any]]] = dict(
+        (package.get("meta") or {}).get("skill_trace") or {}
+    )
 
     try:
         for step_i, agent in enumerate(agents):
             idx = AGENT_SEQUENCE.index(agent)
+            agent_cfg = _load_agent_config(db, agent)
+            _, agent_skills = build_agent_skill_context(agent, agent_cfg, _task_context(task))
+            skill_trace[agent] = agent_skills
             # 标记当前 Agent 运行中，右侧可先显示任务输入
             running_step = {
                 "agent": agent,
@@ -456,6 +649,7 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
                 "input": {
                     "task": task_meta,
                     "hint": AGENT_HINTS[agent],
+                    "skills": agent_skills,
                 },
                 "output": None,
                 "focus": None,
@@ -554,6 +748,32 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
                 )
 
             package = merge_agent_output(package, agent, data)
+            if agent == "CaseWriter":
+                if use_llm:
+                    package, repair_tokens = await _repair_casewriter_length(
+                        db, task, package, on_delta=_push_llm_delta
+                    )
+                    tokens += repair_tokens
+                else:
+                    ensure_mock_body_length(package, task)
+
+                actual = update_body_length_meta(package, task.target_words)
+                minimum = math.ceil(task.target_words * 0.95)
+                maximum = math.floor(task.target_words * 1.05)
+                if not minimum <= actual <= maximum:
+                    raise ValueError(
+                        f"案例正文篇幅验收失败：实际 {actual} 字，"
+                        f"要求 {minimum}–{maximum} 字（目标 {task.target_words} 字）"
+                    )
+                score_package(package)
+                body = package.get("body") or {}
+                data = {
+                    "background": body.get("background"),
+                    "narrative": body.get("narrative"),
+                    "decision_point": body.get("decision_point"),
+                    "characters": body.get("characters", []),
+                }
+                summary = f"案例正文已通过验收：实际 {actual} 字 / 目标 {task.target_words} 字"
             if agent == "Reviewer" and "overall_score" not in (package.get("quality") or {}):
                 score_package(package)
 
@@ -563,7 +783,7 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
                 "agent": agent,
                 "status": "completed",
                 "summary": summary,
-                "input": {"task": task_meta, "hint": AGENT_HINTS[agent]},
+                "input": {"task": task_meta, "hint": AGENT_HINTS[agent], "skills": agent_skills},
                 "output": data if isinstance(data, dict) else {"raw": data},
                 "focus": focus,
                 "duration_ms": max(duration_ms, 1),
@@ -577,8 +797,12 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
                 AgentRunLog(
                     task_id=task_id,
                     agent_name=agent,
-                    round=1 if only_agent else 0,
-                    input_summary=f"任务: {task.title}" + (f" | 局部重跑" if only_agent else ""),
+                    round=0,
+                    input_summary=(
+                        f"任务: {task.title}"
+                        + " | Skills: "
+                        + ", ".join(f"{item['name']}@{item['revision']}" for item in agent_skills)
+                    ),
                     output_summary=summary,
                     token_usage=tokens,
                     duration_ms=max(duration_ms, 1),
@@ -603,8 +827,26 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
             if use_llm:
                 await asyncio.sleep(0.6)
 
+        actual = update_body_length_meta(package, task.target_words)
+        minimum = math.ceil(task.target_words * 0.95)
+        maximum = math.floor(task.target_words * 1.05)
+        if not minimum <= actual <= maximum:
+            raise ValueError(
+                f"案例正文最终验收失败：实际 {actual} 字，要求 {minimum}–{maximum} 字"
+            )
+
         if not package.get("quality") or not package["quality"].get("overall_score"):
             score_package(package)
+
+        normalize_case_package(package)
+        package.setdefault("meta", {})["skill_trace"] = skill_trace
+        validation = validate_package_with_skill(package, _task_context(task))
+        package.setdefault("quality", {})["validation"] = validation
+        validation_errors = [
+            issue["message"] for issue in validation["issues"] if issue.get("severity") == "error"
+        ]
+        if validation_errors:
+            raise ValueError("案例包质量门禁未通过：" + "；".join(validation_errors))
 
         overall = float(package["quality"].get("overall_score") or 0)
         pkg = CasePackage(
@@ -654,8 +896,8 @@ async def run_pipeline(db: Session, task_id: str, only_agent: str | None = None)
         )
 
 
-async def run_generation(db: Session, task_id: str, only_agent: str | None = None) -> None:
-    await run_pipeline(db, task_id, only_agent=only_agent)
+async def run_generation(db: Session, task_id: str) -> None:
+    await run_pipeline(db, task_id)
 
 
 def consume_quota(db: Session, user: User) -> None:

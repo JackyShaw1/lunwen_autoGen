@@ -61,7 +61,7 @@ export default function AgentConfig() {
       >
         {!isAdmin && (
           <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            当前为教师账号：可查看配置。编辑保存请使用管理员登录（admin@university.edu.cn / admin123）。
+            当前为教师账号：可查看配置。编辑保存请使用管理员账号登录。
           </p>
         )}
         {isLoading && <p className="text-sm text-gray-500">加载中…</p>}

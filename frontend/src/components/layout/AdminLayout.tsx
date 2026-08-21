@@ -1,4 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
+import { LogoutButton } from './LogoutButton'
 
 const adminLinks = [
   { id: 'agent-list', label: '🤖 Agent 角色' },
@@ -12,9 +13,9 @@ const adminLinks = [
 export function AdminLayout() {
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-52 shrink-0 border-r border-gray-200 bg-slate-50 p-4">
+      <aside className="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-slate-50 p-4">
         <div className="mb-4 px-2 text-sm font-bold text-primary">⚙️ Agent 配置中心</div>
-        <nav className="space-y-0.5">
+        <nav className="flex-1 space-y-0.5">
           {adminLinks.map((link) => (
             <a
               key={link.id}
@@ -28,6 +29,7 @@ export function AdminLayout() {
         <NavLink to="/dashboard" className="mt-4 block px-3 py-2 text-sm text-gray-500 hover:text-primary">
           ← 返回工作台
         </NavLink>
+        <LogoutButton className="mt-1" />
       </aside>
       <main className="flex-1 overflow-y-auto p-6 md:p-8">
         <Outlet />

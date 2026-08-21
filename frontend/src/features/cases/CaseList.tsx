@@ -3,9 +3,21 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge, statusBadge } from '@/components/ui/Badge'
 import type { CaseTask } from '@/types/case'
+import { BookOpen, Plus } from 'lucide-react'
 
 export function CaseList({ cases }: { cases: CaseTask[] }) {
   const navigate = useNavigate()
+
+  if (cases.length === 0) {
+    return (
+      <Card className="border-dashed py-14 text-center">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-primary"><BookOpen size={23} /></span>
+        <h3 className="mt-4 font-bold text-slate-900">还没有教学案例</h3>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">从一门正在教授的课程开始，几分钟内建立第一份可编辑的案例授课包。</p>
+        <Button className="mt-5" onClick={() => navigate('/case/new')}><Plus size={16} />创建第一个案例</Button>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-3">
@@ -27,7 +39,7 @@ export function CaseList({ cases }: { cases: CaseTask[] }) {
           </div>
           <div className="flex items-center gap-2">
             {statusBadge(c.status)}
-            {c.rubric_overall && <Badge variant="teal">Rubric {c.rubric_overall}</Badge>}
+            {c.rubric_overall && <Badge variant="teal">质量 {c.rubric_overall}</Badge>}
             {c.status === 'running' ? (
               <Button
                 variant="outline"

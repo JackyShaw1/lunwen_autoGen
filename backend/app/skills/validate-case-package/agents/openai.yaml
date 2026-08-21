@@ -1,0 +1,6 @@
+interface:
+  display_name: "案例包质量门禁"
+  short_description: "确定性校验案例结构、正文篇幅、目标对齐、课时与评分一致性"
+  default_prompt: "使用 $validate-case-package 检查教学案例包并返回结构化问题。"
+policy:
+  allow_implicit_invocation: true

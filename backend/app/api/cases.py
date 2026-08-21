@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -12,11 +13,17 @@ from app.schemas import (
     CreateCaseRequest,
     ExportRequest,
     ExportResponse,
-    RegenerateRequest,
+    ObjectiveSuggestionRequest,
+    ObjectiveSuggestionResponse,
+    PptOutlineRequest,
 )
 from app.services.export_service import export_docx, export_pdf
 from app.services.orchestrator import consume_quota, run_generation
+from app.services.objective_generator import generate_objectives
+from app.services.package_builder import normalize_case_package
+from app.services.pptx_export_service import build_ppt_outline, export_pptx, outline_preview
 from app.services.progress_hub import progress_hub
+from app.services.skill_loader import validate_package_with_skill
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -24,17 +31,32 @@ router = APIRouter(prefix="/cases", tags=["cases"])
 _bg_tasks: set[asyncio.Task] = set()
 
 
-async def _run_generation_task(task_id: str, only_agent: str | None = None) -> None:
+def _task_context(task: CaseTask) -> dict:
+    return {
+        "title": task.title,
+        "subject": task.subject,
+        "course_name": task.course_name,
+        "case_type": task.case_type,
+        "difficulty": task.difficulty,
+        "target_audience": task.target_audience,
+        "target_words": task.target_words,
+        "learning_objectives": task.learning_objectives or [],
+        "workflow_template": task.workflow_template,
+        "config": task.config or {},
+    }
+
+
+async def _run_generation_task(task_id: str) -> None:
     """在主事件循环中跑生成，确保 WebSocket 进度推送可用。"""
     db = SessionLocal()
     try:
-        await run_generation(db, task_id, only_agent=only_agent)
+        await run_generation(db, task_id)
     finally:
         db.close()
 
 
-def _spawn_generation(task_id: str, only_agent: str | None = None) -> None:
-    task = asyncio.create_task(_run_generation_task(task_id, only_agent))
+def _spawn_generation(task_id: str) -> None:
+    task = asyncio.create_task(_run_generation_task(task_id))
     _bg_tasks.add(task)
     task.add_done_callback(_bg_tasks.discard)
 
@@ -51,6 +73,15 @@ def list_cases(
         rubric = float(pkg.rubric_overall) if pkg and pkg.rubric_overall else None
         out.append(task_to_out(t, rubric))
     return out
+
+
+@router.post("/suggest-objectives", response_model=ObjectiveSuggestionResponse)
+def suggest_objectives(
+    body: ObjectiveSuggestionRequest,
+    _user: User = Depends(get_current_user),
+):
+    """依据案例类型选择思维框架，每次返回三条可编辑的教学目标。"""
+    return generate_objectives(body.model_dump())
 
 
 @router.get("/{task_id}", response_model=CaseTaskOut)
@@ -223,6 +254,7 @@ def get_package(
     pkg = get_latest_package(task_id, db)
     if not pkg:
         raise HTTPException(404, "案例包尚未生成")
+    normalize_case_package(pkg.package)
     return {
         "version": pkg.version,
         "status": pkg.status,
@@ -247,6 +279,10 @@ def update_package(
     if not isinstance(package, dict) or "meta" not in package:
         raise HTTPException(400, "无效的案例包结构")
 
+    normalize_case_package(package)
+    validation = validate_package_with_skill(package, _task_context(task))
+    package.setdefault("quality", {})["validation"] = validation
+
     pkg = get_latest_package(task_id, db)
     next_version = 1
     if pkg:
@@ -270,25 +306,6 @@ def update_package(
     return {"message": "已保存", "version": next_version}
 
 
-@router.post("/{task_id}/regenerate")
-async def regenerate_agent(
-    task_id: str,
-    body: RegenerateRequest,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    task = db.query(CaseTask).filter(CaseTask.id == task_id, CaseTask.user_id == user.id).first()
-    if not task:
-        raise HTTPException(404, "任务不存在")
-    if task.status == "running":
-        raise HTTPException(400, "任务正在生成中")
-    if not get_latest_package(task_id, db):
-        raise HTTPException(400, "请先完成首次生成")
-
-    _spawn_generation(task_id, body.agent)
-    return {"message": f"已触发 {body.agent} 重新生成", "task_id": task_id, "agent": body.agent}
-
-
 @router.post("/{task_id}/export", response_model=ExportResponse)
 def export_case(
     task_id: str,
@@ -303,10 +320,28 @@ def export_case(
     if not pkg:
         raise HTTPException(400, "请先生成案例")
 
-    if body.format == "docx":
-        path = export_docx(pkg.package, task.title)
-    else:
-        path = export_pdf(pkg.package, task.title)
+    normalize_case_package(pkg.package)
+    validation = validate_package_with_skill(pkg.package, _task_context(task))
+    validation_errors = [
+        issue["message"] for issue in validation["issues"] if issue.get("severity") == "error"
+    ]
+    if validation_errors:
+        raise HTTPException(400, "导出前质量校验未通过：" + "；".join(validation_errors))
+
+    try:
+        if body.format == "docx":
+            path = export_docx(pkg.package, task.title, pkg.version)
+        elif body.format == "pdf":
+            path = export_pdf(pkg.package, task.title, pkg.version)
+        else:
+            path = export_pptx(
+                pkg.package,
+                task.title,
+                pkg.version,
+                body.ppt_options.model_dump() if body.ppt_options else None,
+            )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(500, f"{body.format.upper()} 导出失败：{exc}") from exc
 
     rec = ExportRecord(task_id=task_id, format=body.format, file_path=path)
     db.add(rec)
@@ -317,7 +352,26 @@ def export_case(
         export_id=rec.id,
         format=body.format,
         download_url=f"/api/cases/{task_id}/exports/{rec.id}/download",
+        filename=Path(path).name,
+        version=pkg.version,
     )
+
+
+@router.post("/{task_id}/ppt-outline")
+def preview_ppt_outline(
+    task_id: str,
+    body: PptOutlineRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    task = db.query(CaseTask).filter(CaseTask.id == task_id, CaseTask.user_id == user.id).first()
+    if not task:
+        raise HTTPException(404, "任务不存在")
+    pkg = get_latest_package(task_id, db)
+    if not pkg:
+        raise HTTPException(400, "请先生成案例")
+    normalize_case_package(pkg.package)
+    return outline_preview(build_ppt_outline(pkg.package, body.model_dump()))
 
 
 @router.get("/{task_id}/exports/{export_id}/download")
@@ -335,7 +389,13 @@ def download_export(
     rec = db.query(ExportRecord).filter(ExportRecord.id == export_id, ExportRecord.task_id == task_id).first()
     if not rec:
         raise HTTPException(404, "导出记录不存在")
-    media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    if rec.format == "pdf":
-        media = "application/pdf"
-    return FileResponse(rec.file_path, media_type=media, filename=f"{task.title}.{rec.format}")
+    media_types = {
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pdf": "application/pdf",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }
+    media = media_types.get(rec.format, "application/octet-stream")
+    path = Path(rec.file_path)
+    if not path.exists():
+        raise HTTPException(404, "导出文件已不存在，请重新导出")
+    return FileResponse(path, media_type=media, filename=path.name)

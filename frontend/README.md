@@ -44,8 +44,9 @@ npm run dev
 ## 说明
 
 - 后端未启动时使用内置 **Mock 数据**，可完整浏览各页面
-- 登录页任意密码即可进入（演示模式）
-- API 代理见 `vite.config.ts` → `localhost:8000`
+- 登录页支持邮箱注册与登录；密码只提交给后端校验，不写入 localStorage/Cookie
+- 长期会话由后端签发有时效的 HttpOnly refresh Cookie
+- API 代理见 `vite.config.ts` → `localhost:8010`
 
 ## 页面
 
@@ -53,11 +54,12 @@ npm run dev
 |------|------|
 | `/` | 首页 |
 | `/auth` | 登录 |
+| `/register` | 邮箱注册教师账号 |
 | `/dashboard` | 工作台 + 统计看板 |
 | `/case/new` | 创建案例 |
 | `/case/:id/generate` | Agent 协作监控 |
 | `/case/:id` | 案例四件套 |
-| `/case/:id/export` | 导出 Word/PDF |
+| `/case/:id/export` | 导出 Word/PDF/PPTX、配置课件并预览目录 |
 | `/admin/agents` | Agent 配置 |
 
 详见 `docs/07-前端技术实现文档.md`

@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AdminLayout } from '@/components/layout/AdminLayout'
-import { AuthGuard } from '@/routes/guards'
+import { AdminGuard, AuthGuard } from '@/routes/guards'
 import Landing from '@/pages/Landing'
 import Auth from '@/pages/Auth'
+import Register from '@/pages/Register'
 import Dashboard from '@/pages/Dashboard'
 import CreateCase from '@/pages/CreateCase'
 import GenerationMonitor from '@/pages/GenerationMonitor'
@@ -17,6 +18,7 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/register" element={<Register />} />
         <Route element={<AuthGuard />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -25,8 +27,10 @@ export function AppRoutes() {
             <Route path="/case/:id/export" element={<Export />} />
             <Route path="/case/:id" element={<CaseDetail />} />
           </Route>
-          <Route element={<AdminLayout />}>
-            <Route path="/admin/agents" element={<AgentConfig />} />
+          <Route element={<AdminGuard />}>
+            <Route element={<AdminLayout />}>
+              <Route path="/admin/agents" element={<AgentConfig />} />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

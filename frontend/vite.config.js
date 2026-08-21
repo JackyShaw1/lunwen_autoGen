@@ -9,10 +9,13 @@ export default defineConfig({
         },
     },
     server: {
+        host: '0.0.0.0',
         port: 5173,
+        strictPort: true,
+        allowedHosts: ['.app.55clouds.com'],
         proxy: {
-            '/api': { target: 'http://localhost:8000', changeOrigin: true },
-            '/ws': { target: 'http://localhost:8000', ws: true },
+            '/api': { target: 'http://localhost:8010', changeOrigin: true },
+            '/ws': { target: 'http://localhost:8010', ws: true },
         },
     },
 });

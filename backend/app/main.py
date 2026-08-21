@@ -47,3 +47,9 @@ def health():
         "generation_mode": "llm" if (s.openai_api_key and not s.use_mock_generation) else "mock",
         "model": s.openai_model if s.openai_api_key and not s.use_mock_generation else None,
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.backend_port, reload=settings.debug)

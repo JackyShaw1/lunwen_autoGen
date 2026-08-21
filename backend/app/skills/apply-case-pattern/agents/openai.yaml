@@ -1,0 +1,6 @@
+interface:
+  display_name: "教学案例模式"
+  short_description: "按学习任务应用决策、诊断、分析、设计、伦理或模拟结构"
+  default_prompt: "使用 $apply-case-pattern 为当前教学任务选择并应用案例结构。"
+policy:
+  allow_implicit_invocation: true

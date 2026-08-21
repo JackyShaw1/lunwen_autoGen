@@ -1,4 +1,4 @@
-import type { AgentProgressItem, AgentStepResult } from '@/types/case'
+import type { AgentProgressItem } from '@/types/case'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { cn } from '@/lib/utils'
@@ -46,8 +46,8 @@ export function AgentPipeline({
         <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary to-teal-400 text-3xl font-bold text-white">
           {overall}%
         </div>
-        <h2 className="text-xl font-bold">AutoGen 多 Agent 协作中</h2>
-        <p className="mt-2 text-sm text-gray-500">点击左侧步骤可查看右侧过程数据</p>
+        <h2 className="text-xl font-bold">AI 教研团队协作中</h2>
+        <p className="mt-2 text-sm text-gray-500">选择任一环节，查看当前思路与阶段产出</p>
       </div>
       <div className="space-y-0">
         {agents.map((agent, i) => (

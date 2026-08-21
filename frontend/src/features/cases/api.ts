@@ -21,7 +21,7 @@ export const mockDashboardStats: DashboardStats = {
   avg_rubric: 0,
   avg_rubric_delta: 0,
   estimated_hours_saved: 0,
-  export_count: { docx: 0, pdf: 0, total: 0 },
+  export_count: { docx: 0, pdf: 0, pptx: 0, total: 0 },
   avg_generation_minutes: 0,
   discussion_questions_total: 0,
   agent_regenerate_count: 0,
@@ -40,14 +40,24 @@ async function withOptionalMock<T>(fn: () => Promise<T>, fallback: () => T): Pro
   }
 }
 
-export async function loginApi(email: string, password: string) {
+export async function loginApi(email: string, password: string, rememberMe: boolean) {
   return withOptionalMock(
     async () => {
-      const { data } = await api.post('/auth/login', { email, password })
+      const { data } = await api.post('/auth/login', { email, password, remember_me: rememberMe })
       return data
     },
     () => ({ user: { ...mockUser, email }, access_token: 'demo-token' }),
   )
+}
+
+export async function registerApi(name: string, email: string, password: string, rememberMe: boolean) {
+  const { data } = await api.post('/auth/register', {
+    name,
+    email,
+    password,
+    remember_me: rememberMe,
+  })
+  return data
 }
 
 export async function fetchCases(): Promise<CaseTask[]> {
@@ -74,6 +84,26 @@ export async function createCase(payload: CreateCasePayload): Promise<CaseTask> 
   return data
 }
 
+export interface ObjectiveSuggestion {
+  framework: 'pyramid' | 'systems' | '3w1h'
+  framework_name: string
+  rationale: string
+  objectives: string[]
+}
+
+export async function suggestLearningObjectives(payload: {
+  title: string
+  subject: string
+  course_name: string
+  case_type: string
+  difficulty: string
+  target_audience: string
+  variant: number
+}): Promise<ObjectiveSuggestion> {
+  const { data } = await api.post<ObjectiveSuggestion>('/cases/suggest-objectives', payload)
+  return data
+}
+
 export async function fetchCasePackage(caseId: string): Promise<CasePackage> {
   const { data } = await api.get<{ package?: CasePackage } & CasePackage>(`/cases/${caseId}/package`)
   if (data.package && data.package.meta) return data.package
@@ -89,11 +119,6 @@ export async function startGeneration(caseId: string) {
   await api.post(`/cases/${caseId}/generate`)
 }
 
-export async function regenerateAgent(caseId: string, agent: string) {
-  const { data } = await api.post(`/cases/${caseId}/regenerate`, { agent })
-  return data
-}
-
 export async function fetchCaseStatus(caseId: string) {
   const { data } = await api.get(`/cases/${caseId}/status`)
   return data
@@ -104,10 +129,37 @@ export async function fetchLiveProgress(caseId: string) {
   return data
 }
 
-export async function exportCase(caseId: string, format: 'docx' | 'pdf') {
-  const { data } = await api.post<{ export_id: string; format: string; download_url: string }>(
+export type ExportFormat = 'docx' | 'pdf' | 'pptx'
+export interface PptOptions {
+  theme: 'academic' | 'modern' | 'minimal'
+  density: 'concise' | 'standard' | 'detailed'
+  audience: 'student' | 'teacher'
+}
+
+export interface PptOutlinePreview {
+  title: string
+  slide_count: number
+  theme: PptOptions['theme']
+  density: PptOptions['density']
+  audience: PptOptions['audience']
+  slides: Array<{ index: number; kind: string; title: string; summary: string; teacher_only: boolean }>
+}
+
+export async function fetchPptOutline(caseId: string, options: PptOptions) {
+  const { data } = await api.post<PptOutlinePreview>(`/cases/${caseId}/ppt-outline`, options)
+  return data
+}
+
+export async function exportCase(caseId: string, format: ExportFormat, pptOptions?: PptOptions) {
+  const { data } = await api.post<{
+    export_id: string
+    format: string
+    download_url: string
+    filename: string
+    version: number
+  }>(
     `/cases/${caseId}/export`,
-    { format },
+    { format, ppt_options: format === 'pptx' ? pptOptions : undefined },
   )
   return data
 }
@@ -120,7 +172,9 @@ export async function downloadExport(caseId: string, exportId: string, filename:
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  document.body.appendChild(a)
   a.click()
+  a.remove()
   URL.revokeObjectURL(url)
 }
 

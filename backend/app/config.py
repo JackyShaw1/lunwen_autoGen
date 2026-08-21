@@ -1,3 +1,4 @@
+import secrets
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,9 +14,16 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "CaseAutoGenSystem"
-    debug: bool = True
-    secret_key: str = "change-me-in-production-use-long-random-string"
-    access_token_expire_minutes: int = 60 * 24 * 7
+    debug: bool = False
+    backend_port: int = 8010
+    # 未配置环境变量时每次进程启动生成随机密钥，避免使用可公开猜测的默认值。
+    secret_key: str = secrets.token_urlsafe(48)
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+    session_refresh_token_expire_hours: int = 12
+    refresh_cookie_name: str = "case_autogen_refresh"
+    cookie_secure: bool = True
+    seed_demo_users: bool = False
     algorithm: str = "HS256"
 
     database_url: str = "sqlite:///./data/case_autogen.db"

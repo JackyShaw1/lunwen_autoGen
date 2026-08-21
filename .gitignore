@@ -11,6 +11,15 @@ venv/
 
 # Database
 backend/data/*.db
+backend/data/exports/
+
+# Runtime uploads
+uploads/
+
+# Workspace platform metadata
+.xingshu/
+AGENTS.md
+CLAUDE.md
 
 # IDE
 .idea/

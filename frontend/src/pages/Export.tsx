@@ -1,74 +1,159 @@
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Check, Download, Eye, FileText, GraduationCap, Layers3, Palette, Presentation, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
-import { downloadExport, exportCase } from '@/features/cases/api'
+import {
+  downloadExport,
+  exportCase,
+  fetchPptOutline,
+  type ExportFormat,
+  type PptOptions,
+  type PptOutlinePreview,
+} from '@/features/cases/api'
+
+const FORMATS: Array<{ id: ExportFormat; title: string; desc: string }> = [
+  { id: 'docx', title: 'Word 授课包 (.docx)', desc: '适合继续编辑、院系审核和二次排版' },
+  { id: 'pdf', title: 'PDF 文档 (.pdf)', desc: '适合定稿归档、打印和课堂分发' },
+  { id: 'pptx', title: 'PPT 课堂课件 (.pptx)', desc: '自动提炼内容、按教学节奏分页，可在 WPS 或 PowerPoint 中继续编辑' },
+]
+
+const THEMES: Array<{ id: PptOptions['theme']; label: string; desc: string; color: string }> = [
+  { id: 'academic', label: '学术靛蓝', desc: '稳重、清晰，适合高校课堂', color: 'bg-indigo-600' },
+  { id: 'modern', label: '现代青绿', desc: '简洁、有活力，适合培训研讨', color: 'bg-teal-600' },
+  { id: 'minimal', label: '极简暖灰', desc: '克制、突出内容与判断', color: 'bg-amber-600' },
+]
+
+const DENSITIES: Array<{ id: PptOptions['density']; label: string; desc: string }> = [
+  { id: 'concise', label: '精简', desc: '约 8–12 页，突出关键冲突' },
+  { id: 'standard', label: '标准', desc: '约 12–16 页，兼顾叙事与讨论' },
+  { id: 'detailed', label: '详细', desc: '约 16–22 页，保留更多案例证据' },
+]
 
 export default function Export() {
   const { id } = useParams<{ id: string }>()
-  const [format, setFormat] = useState<'docx' | 'pdf'>('docx')
+  const navigate = useNavigate()
+  const [format, setFormat] = useState<ExportFormat>('docx')
+  const [pptOptions, setPptOptions] = useState<PptOptions>({ theme: 'academic', density: 'standard', audience: 'teacher' })
+  const [outline, setOutline] = useState<PptOutlinePreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!id || format !== 'pptx') return
+    let active = true
+    setPreviewLoading(true)
+    fetchPptOutline(id, pptOptions)
+      .then((data) => { if (active) setOutline(data) })
+      .catch(() => { if (active) setOutline(null) })
+      .finally(() => { if (active) setPreviewLoading(false) })
+    return () => { active = false }
+  }, [id, format, pptOptions.theme, pptOptions.density, pptOptions.audience])
+
+  const updatePptOption = <K extends keyof PptOptions>(key: K, value: PptOptions[K]) => {
+    setPptOptions((current) => ({ ...current, [key]: value }))
+  }
 
   const handleDownload = async () => {
     if (!id) return
     setLoading(true)
     setError('')
     try {
-      const res = await exportCase(id, format)
-      await downloadExport(id, res.export_id, `case-package.${format}`)
+      const res = await exportCase(id, format, pptOptions)
+      await downloadExport(id, res.export_id, res.filename)
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        '导出失败，请确认案例已生成'
+        '导出失败，请确认案例已生成并通过质量检查'
       setError(String(msg))
     } finally {
       setLoading(false)
     }
   }
 
+  const formatLabel = format === 'docx' ? 'Word 授课包' : format === 'pdf' ? 'PDF 授课包' : 'PPT 课堂课件'
+
   return (
-    <div className="max-w-4xl">
-      <h1 className="mb-6 text-2xl font-bold">导出授课包</h1>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <h3 className="font-semibold">包含内容</h3>
-          <ul className="mt-4 space-y-2 text-sm text-gray-700">
-            <li>✓ 案例正文</li>
-            <li>✓ 讨论题（分层）</li>
-            <li>✓ 教师参考手册</li>
-            <li>✓ 教学目标对齐表</li>
-            <li>✓ 虚构情境声明</li>
+    <div className="mx-auto max-w-6xl">
+      <button type="button" onClick={() => navigate(`/case/${id}`)} className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"><ArrowLeft size={16} />返回案例</button>
+      <div className="mb-8">
+        <p className="text-sm font-semibold text-primary">最后一步</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">把案例变成可直接使用的教学材料</h1>
+        <p className="mt-2 text-sm text-slate-500">文档用于审核与分发，PPT 会自动提炼案例内容并按课堂教学节奏重新组织。</p>
+      </div>
+
+      <div className="grid items-start gap-7 lg:grid-cols-[330px_minmax(0,1fr)]">
+        <Card className="bg-slate-950 text-white lg:sticky lg:top-8">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">{format === 'pptx' ? <Presentation size={22} /> : <FileText size={22} />}</span>
+          <h3 className="mt-5 text-lg font-bold">{format === 'pptx' ? '课堂课件包含' : '授课文档包含'}</h3>
+          <ul className="mt-5 space-y-3 text-sm text-slate-300">
+            {(format === 'pptx'
+              ? ['课程目标与课堂路径', '案例情境与关键角色', '按阶段拆分的案例进程', '决策点与分层讨论题', pptOptions.audience === 'teacher' ? '授课流程与教学提示' : '适合直接投放的学生视图']
+              : ['案例正文与决策点', '分层讨论题', '教师参考手册', '教学目标对齐表', '虚构情境声明']
+            ).map((item) => <li key={item} className="flex items-start gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-400" />{item}</li>)}
           </ul>
+          <div className="mt-7 flex gap-2 rounded-xl bg-white/5 p-3 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="shrink-0 text-emerald-400" />PPTX 中的文字、图形和表格均可在 WPS 或 PowerPoint 中继续编辑。</div>
         </Card>
-        <div>
-          <button
-            type="button"
-            onClick={() => setFormat('docx')}
-            className={cn(
-              'mb-3 w-full rounded-xl border-2 p-4 text-left',
-              format === 'docx' ? 'border-primary bg-primary-light' : 'border-gray-200',
-            )}
-          >
-            <h4 className="font-semibold">Word 授课包 (.docx)</h4>
-            <p className="text-xs text-gray-500">可编辑，合并排版</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormat('pdf')}
-            className={cn(
-              'mb-3 w-full rounded-xl border-2 p-4 text-left',
-              format === 'pdf' ? 'border-primary bg-primary-light' : 'border-gray-200',
-            )}
-          >
-            <h4 className="font-semibold">PDF 文档 (.pdf)</h4>
-            <p className="text-xs text-gray-500">适合打印分发（中文建议优先 Word）</p>
-          </button>
-          {error && <p className="text-xs text-red-600">{error}</p>}
-          <Button className="mt-4 w-full" size="lg" disabled={loading} onClick={handleDownload}>
-            {loading ? '导出中…' : `下载 ${format === 'docx' ? 'Word' : 'PDF'}`}
-          </Button>
+
+        <div className="space-y-5">
+          <section className="space-y-3">
+            <div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">01</p><h2 className="mt-1 font-bold text-slate-900">选择输出格式</h2></div>
+            {FORMATS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setFormat(item.id)}
+                className={cn('w-full rounded-2xl border-2 bg-white p-5 text-left transition hover:border-indigo-300', format === item.id ? 'border-primary bg-primary-light' : 'border-slate-200')}
+              >
+                <div className="flex items-start justify-between gap-3"><div><h4 className="font-bold">{item.title}</h4><p className="mt-1 text-sm leading-6 text-slate-500">{item.desc}</p></div>{format === item.id && <span className="shrink-0 rounded-full bg-primary px-2 py-1 text-xs font-semibold text-white">已选择</span>}</div>
+              </button>
+            ))}
+          </section>
+
+          {format === 'pptx' && (
+            <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
+              <div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">02</p><h2 className="mt-1 font-bold text-slate-900">设置课件风格</h2><p className="mt-1 text-xs text-slate-500">系统会重新组织内容，不会把长文整段复制到幻灯片。</p></div>
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><Palette size={16} />视觉主题</div>
+                <div className="grid gap-2 md:grid-cols-3">
+                  {THEMES.map((theme) => <button key={theme.id} type="button" onClick={() => updatePptOption('theme', theme.id)} className={cn('rounded-xl border p-3 text-left transition', pptOptions.theme === theme.id ? 'border-primary bg-indigo-50' : 'border-slate-200 hover:border-slate-300')}><span className={cn('mb-2 block h-2 w-10 rounded-full', theme.color)} /><span className="block text-sm font-semibold">{theme.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{theme.desc}</span></button>)}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><Layers3 size={16} />内容密度</div>
+                <div className="grid gap-2 md:grid-cols-3">
+                  {DENSITIES.map((density) => <button key={density.id} type="button" onClick={() => updatePptOption('density', density.id)} className={cn('rounded-xl border p-3 text-left transition', pptOptions.density === density.id ? 'border-primary bg-indigo-50' : 'border-slate-200 hover:border-slate-300')}><span className="block text-sm font-semibold">{density.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{density.desc}</span></button>)}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><GraduationCap size={16} />使用对象</div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <button type="button" onClick={() => updatePptOption('audience', 'teacher')} className={cn('rounded-xl border p-3 text-left transition', pptOptions.audience === 'teacher' ? 'border-primary bg-indigo-50' : 'border-slate-200')}><span className="block text-sm font-semibold">教师授课版</span><span className="mt-1 block text-xs text-slate-500">包含教学意图、授课流程、误区和目标对齐</span></button>
+                  <button type="button" onClick={() => updatePptOption('audience', 'student')} className={cn('rounded-xl border p-3 text-left transition', pptOptions.audience === 'student' ? 'border-primary bg-indigo-50' : 'border-slate-200')}><span className="block text-sm font-semibold">学生展示版</span><span className="mt-1 block text-xs text-slate-500">隐藏教师提示，适合课堂直接投屏或分发</span></button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {format === 'pptx' && (
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 md:p-6">
+              <div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Eye size={16} />课件目录预览</div><p className="mt-1 text-xs text-slate-500">修改上方选项后，目录和页数会自动更新。</p></div>{outline && <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-primary shadow-sm">{outline.slide_count} 页</span>}</div>
+              {previewLoading ? <div className="mt-4 animate-pulse rounded-xl bg-white p-5 text-sm text-slate-400">正在组织课件内容…</div> : outline ? (
+                <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {outline.slides.map((slide) => <div key={slide.index} className="flex gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500">{slide.index}</span><div className="min-w-0"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-slate-800">{slide.title}</p>{slide.teacher_only && <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">教师</span>}</div>{slide.summary && <p className="mt-1 line-clamp-1 text-xs text-slate-400">{slide.summary}</p>}</div></div>)}
+                </div>
+              ) : <p className="mt-4 rounded-xl bg-white p-4 text-xs text-slate-500">暂时无法预览目录，仍可尝试生成课件。</p>}
+            </section>
+          )}
+
+          {error && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">文件将按“案例主题_{format === 'pptx' ? '教学案例课件' : '教学案例授课包'}_V版本号”命名，便于归档和区分修改版本。</div>
+          <Button className="w-full" size="lg" disabled={loading || (format === 'pptx' && previewLoading)} onClick={handleDownload}><Download size={18} />{loading ? `正在生成${formatLabel}…` : `下载${formatLabel}`}</Button>
         </div>
       </div>
     </div>

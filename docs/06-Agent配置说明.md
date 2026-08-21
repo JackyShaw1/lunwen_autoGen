@@ -1,6 +1,6 @@
 # Agent 配置说明
 
-> **文档版本**：v1.0  
+> **文档版本**：v2.1
 > **关联文档**：`02-产品需求文档PRD.md` F06、`04-技术实现文档.md` 第 2 章  
 > **读者**：产品经理、教研管理员、开发实施人员
 
@@ -43,7 +43,7 @@
 | **运行时参数** | 管理员 | max_round、重试次数、Reviewer 通过阈值 | ✅ |
 | **对话日志策略** | 管理员 | 是否记录完整 Agent 输入输出（教研调试） | ✅ |
 | **配置预览 / 试跑** | 管理员 | 改 Prompt 后用样例参数跑单次 Agent 看效果 | Should |
-| **局部 Agent 重跑** | 教师 | 只重跑 Pedagogy / Reviewer，不重跑全流程 | ✅ |
+| **Skill 运行追踪** | 管理员/教研 | 查看每个 Agent 实际加载的 Skill 与版本 | ✅ |
 | **人机协同节点** | 教师 | 大纲确认后再进入 Writer（Human-in-the-loop） | v1.1 |
 
 ---
@@ -98,7 +98,7 @@ Editor           → 修订后的案例包片段
 
 ```yaml
 # 元信息
-name: CasePlanner              # Agent 唯一标识，与代码、日志、重跑 API 一致
+name: CasePlanner              # Agent 唯一标识，与代码和运行日志一致
 type: ConversableAgent         # AutoGen 类型：ConversableAgent / UserProxyAgent
 description: |                 # 短描述，GroupChat 时辅助选人
   教学案例结构策划专家
@@ -147,7 +147,7 @@ is_active: true
 
 | 字段 | 用来干嘛 |
 |------|----------|
-| `name` | 编排、日志、WebSocket 进度、局部重跑 API 的统一 ID |
+| `name` | 编排、日志、WebSocket 进度的统一 ID |
 | `type` | 决定 AutoGen 实例化方式（是否人类介入） |
 | `system_message` | **核心**：角色边界、输出格式、合规红线 |
 | `llm_config` | 按 Agent 分模型，平衡质量与成本 |
@@ -235,9 +235,22 @@ limits:
 | `inject_fictional_disclaimer` | Writer | 强制插入虚构情境声明 | 合规 |
 | `check_content_safety` | 全部 | 敏感词 / 违规检测 | 合规 |
 | `truncate_context` | Orchestrator | 压缩上游输出再传给下游 | 控 Token |
-| `export_docx` / `export_pdf` | 无（API 层） | 导出授课包 | 与生成链路分离 |
+| `export_docx` / `export_pdf` / `export_pptx` | 无（API 层） | 导出授课包与课件 | 与生成链路分离 |
 
 **配置含义**：在 Agent YAML 的 `tools` 列表中声明后，AutoGen 才会把该 Tool 注册给对应 Agent；未绑定则 Agent 无法调用。
+
+### 6.1 当前 Application Skills
+
+当前 Skills 位于 `backend/app/skills/`，不是静态提示词附件，而是由 `skill_loader.py` 在运行时按 Agent、学科和案例类型选择说明、参考资料或确定性脚本。
+
+| Skill | 主要使用者 | 作用 |
+|-------|------------|------|
+| `design-instructional-plan` | Planner、PedagogyDesigner、Reviewer | 生成可观察目标、分层讨论题、课堂节奏与目标证据对齐 |
+| `apply-case-pattern` | Planner、Writer、Reviewer | 按决策型、分析型、诊断型、模拟型、伦理困境型选择叙事模式 |
+| `adapt-subject-context` | Planner、DomainExpert、Writer | 注入学科术语、情境约束和专业合理性要求 |
+| `validate-case-package` | Writer、PedagogyDesigner、Reviewer、保存/导出 API | 检查结构、目标对齐、重复内容、正文 95%–105% 字数门禁 |
+
+每次生成会把 Agent 对应的 Skill 名称、修订号和所选参考资料写入 `meta.skill_trace`，方便追溯线上案例使用了哪套方法。
 
 ---
 
@@ -334,7 +347,6 @@ subjects/management/
 | 选择编排模板 | ✅ 创建案例时下拉 | ✅ 定义模板 |
 | 编辑 Agent Prompt | ❌ | ✅ |
 | 选择学科（触发插件） | ✅ | ✅ 维护插件内容 |
-| 局部重跑某 Agent | ✅ 案例详情页 | ✅ |
 | 查看 Agent 协作日志 | ✅ 可选开关 | ✅ 完整日志 |
 | 修改 LLM 模型 | ❌ | ✅ |
 | 修改 Rubric 阈值 | ❌ | ✅ |
@@ -382,9 +394,10 @@ A：差在**编排模板**：是否启用 GroupChat、max_round、Reviewer 失�
 **Q：为什么 Writer 和 Reviewer 要用不同模型？**  
 A：Writer 要创造力（可略高 temperature + 强模型）；Reviewer 要稳定（低 temperature + 便宜模型亦可）。
 
-**Q：局部重跑 Pedagogy Agent 需要哪些配置？**  
-A：案例详情页传入 `agent_name`；编排器读取该 Agent 当前 `is_active` 版本，输入为**已有案例正文 + 教学目标**，不重新跑 Planner/Writer。
+**Q：为什么不再提供“局部重跑讨论设计”？**
+
+A：局部重跑容易造成讨论题、教师参考和目标对齐表之间版本错配。当前产品只允许人工编辑案例包；若需要重新生成内容，重新执行完整五 Agent 链并经过统一质量门禁，保证四件套一致。
 
 ---
 
-*Agent 配置是 CaseAutoGenSystem 的核心可运营资产，与案例模板库、评测基准一并归档维护。*
+*Agent 配置与 Application Skills 是 CaseAutoGenSystem 的核心可运营资产；本文已按 v2.1.0 Agent 配置和当前运行时 Skill 机制同步。*
