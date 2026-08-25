@@ -19,7 +19,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(100), default="")
     role: Mapped[str] = mapped_column(String(20), default="teacher")
-    quota_remaining: Mapped[int] = mapped_column(Integer, default=5)
+    quota_remaining: Mapped[int] = mapped_column(Integer, default=30)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     cases: Mapped[list["CaseTask"]] = relationship(back_populates="user")

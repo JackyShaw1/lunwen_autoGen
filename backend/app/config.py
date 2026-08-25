@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     session_refresh_token_expire_hours: int = 12
+    default_registration_quota: int = 30
     refresh_cookie_name: str = "case_autogen_refresh"
     cookie_secure: bool = True
     seed_demo_users: bool = False

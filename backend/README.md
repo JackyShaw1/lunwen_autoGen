@@ -25,7 +25,7 @@ python -m app.main
 
 ## 用户注册
 
-登录页支持公开注册教师账号，初始额度为 5 次。管理员账号不能通过公开注册获得。演示账号默认不创建；仅开发环境明确设置 `SEED_DEMO_USERS=true` 时启用。
+登录页支持公开注册教师账号，初始额度默认为 30 次，可通过 `DEFAULT_REGISTRATION_QUOTA` 调整。管理员账号不能通过公开注册获得。演示账号默认不创建；仅开发环境明确设置 `SEED_DEMO_USERS=true` 时启用。
 
 ## 主要 API
 

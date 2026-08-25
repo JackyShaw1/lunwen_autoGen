@@ -8,7 +8,7 @@ export const mockUser = {
   email: 'teacher@university.edu.cn',
   name: '陈老师',
   role: 'teacher' as const,
-  quota_remaining: 5,
+  quota_remaining: 30,
 }
 
 export const mockCases: CaseTask[] = []
@@ -25,7 +25,7 @@ export const mockDashboardStats: DashboardStats = {
   avg_generation_minutes: 0,
   discussion_questions_total: 0,
   agent_regenerate_count: 0,
-  quota_remaining: 5,
+  quota_remaining: 30,
   subject_distribution: {},
   status_distribution: {},
   monthly_trend: [],

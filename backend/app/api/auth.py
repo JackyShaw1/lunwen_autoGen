@@ -49,7 +49,7 @@ def register(body: RegisterRequest, response: Response, db: Session = Depends(ge
         password_hash=hash_password(body.password),
         name=body.name,
         role="teacher",
-        quota_remaining=5,
+        quota_remaining=settings.default_registration_quota,
     )
     db.add(user)
     try:

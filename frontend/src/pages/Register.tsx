@@ -52,7 +52,7 @@ export default function Register() {
           <span><strong className="block">知案</strong><small className="text-slate-400">AI 教学案例工作台</small></span>
         </Link>
         <div className="relative my-auto max-w-lg">
-          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3 py-1.5 text-sm text-indigo-200"><Sparkles size={15} /> 注册即得 5 次案例生成额度</span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3 py-1.5 text-sm text-indigo-200"><Sparkles size={15} /> 注册即得 30 次案例生成额度</span>
           <h1 className="mt-6 text-4xl font-bold leading-tight">建立属于你的教学案例资产库</h1>
           <div className="mt-8 space-y-4 text-slate-300">
             {['保存并持续迭代每一份课程案例', '实时查看 AI 教研团队协作过程', '导出可编辑、可归档的完整授课包'].map((item) => <div key={item} className="flex items-center gap-3"><CheckCircle2 size={18} className="text-emerald-400" /><span>{item}</span></div>)}
