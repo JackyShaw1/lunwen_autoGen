@@ -157,6 +157,8 @@ class CaseMeta(BaseModel):
     difficulty: str = "intermediate"
     case_type: str = "decision"
     fictional_disclaimer: str = "本案例为教学虚构情境，不代表任何真实企业或个人"
+    content_mode: str = "fictional_teaching_case"
+    source_policy: str | None = None
 
 
 class LearningObjective(BaseModel):
@@ -215,6 +217,15 @@ class VisualAsset(BaseModel):
     match_reasons: list[str] = []
 
 
+class EvidenceSource(BaseModel):
+    id: str
+    title: str
+    source_org: str
+    source_page_url: str
+    published_at: str | None = None
+    usage: str
+
+
 class CasePackageSchema(BaseModel):
     meta: CaseMeta
     learning_objectives: list[LearningObjective]
@@ -224,4 +235,7 @@ class CasePackageSchema(BaseModel):
     alignment_matrix: list[AlignmentRow]
     visual_assets: list[VisualAsset] = []
     material_research: dict[str, Any] | None = None
+    teacher_requirements: dict[str, Any] | None = None
+    evidence_sources: list[EvidenceSource] = []
+    course_ideology: dict[str, Any] | None = None
     quality: CaseQuality | None = None

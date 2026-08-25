@@ -355,15 +355,25 @@ def _run_agent_mock(agent: str, task: CaseTask, package: dict[str, Any]) -> tupl
         }
         summary = "已生成案例大纲与学习目标结构"
     elif agent == "DomainExpert":
+        grounded = (package.get("meta") or {}).get("content_mode") == "source_grounded"
+        teacher = package.get("teacher_requirements") or {}
         data = {
             "domain_notes": (
+                "事实型案例约束：知识锚点为"
+                + "、".join(teacher.get("knowledge_anchors") or [])
+                + "；所有事实必须对应 evidence_sources，推断需明确标注，禁止虚构人物、数据和历史对话。"
+                if grounded else
                 f"{task.subject}情境约束：术语使用需符合《{task.course_name}》教学语境，"
                 "避免过度简化专业机制。"
             )
         }
         summary = "已补充学科情境与术语约束"
     elif agent == "CaseWriter":
-        actual = ensure_mock_body_length(package, task)
+        actual = (
+            update_body_length_meta(package, task.target_words)
+            if (package.get("meta") or {}).get("content_mode") == "source_grounded"
+            else ensure_mock_body_length(package, task)
+        )
         data = {
             "background": package["body"]["background"],
             "narrative": package["body"]["narrative"],
@@ -639,7 +649,10 @@ async def run_pipeline(db: Session, task_id: str) -> None:
     next_version = (latest.version + 1) if latest else 1
     normalize_case_package(package)
 
-    use_llm = llm_available()
+    source_grounded = (package.get("meta") or {}).get("content_mode") == "source_grounded"
+    # Audited profiles must remain deterministic: a free-form model rewrite could add
+    # unsupported people, numbers or dialogue and break the teacher's evidence policy.
+    use_llm = llm_available() and not source_grounded
     logger.warning(
         "generation mode task=%s use_llm=%s model=%s",
         task_id,
@@ -794,7 +807,8 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                     )
                     tokens += repair_tokens
                 else:
-                    ensure_mock_body_length(package, task)
+                    if not source_grounded:
+                        ensure_mock_body_length(package, task)
 
                 actual = update_body_length_meta(package, task.target_words)
                 minimum = math.ceil(task.target_words * 0.95)
@@ -918,6 +932,13 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         )
 
     except Exception as exc:  # noqa: BLE001
+        # A failed flush leaves SQLAlchemy in pending-rollback state. Roll back
+        # before persisting the task failure; otherwise the original failure is
+        # masked and the task may remain stuck as running.
+        db.rollback()
+        task = db.query(CaseTask).filter(CaseTask.id == task_id).first()
+        if not task:
+            return
         task.status = "failed"
         task.error_message = str(exc)[:500]
         task.updated_at = datetime.now(timezone.utc)

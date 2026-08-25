@@ -232,7 +232,7 @@ limits:
 | `validate_case_schema` | Writer, Pedagogy | 校验 JSON 是否符合 CasePackage 子结构 | 结构化可靠 |
 | `load_subject_template` | Planner, Expert | 加载学科案例结构模板 | 学科差异可配置 |
 | `compute_rubric_score` | Reviewer | 规则分 + LLM 分混合计算 Rubric | 评分可复现 |
-| `inject_fictional_disclaimer` | Writer | 强制插入虚构情境声明 | 合规 |
+| `apply_content_provenance_policy` | Planner、Expert、Writer、Reviewer | 按教师要求选择虚构教学情境或事实溯源模式；事实型案例绑定审核来源 | 防止“要求真实”却仍套虚构模板 |
 | `check_content_safety` | 全部 | 敏感词 / 违规检测 | 合规 |
 | `truncate_context` | Orchestrator | 压缩上游输出再传给下游 | 控 Token |
 | `export_docx` / `export_pdf` / `export_pptx` | 无（API 层） | 导出授课包与课件 | 与生成链路分离 |
@@ -248,7 +248,9 @@ limits:
 | `design-instructional-plan` | Planner、PedagogyDesigner、Reviewer | 生成可观察目标、分层讨论题、课堂节奏与目标证据对齐 |
 | `apply-case-pattern` | Planner、Writer、Reviewer | 按决策型、分析型、诊断型、模拟型、伦理困境型选择叙事模式 |
 | `adapt-subject-context` | Planner、DomainExpert、Writer | 注入学科术语、情境约束和专业合理性要求 |
-| `validate-case-package` | Writer、PedagogyDesigner、Reviewer、保存/导出 API | 检查结构、目标对齐、重复内容、正文 95%–105% 字数门禁 |
+| `validate-case-package` | Writer、PedagogyDesigner、Reviewer、保存/导出 API | 检查结构、目标对齐、重复内容、正文 95%–105% 字数门禁；事实型案例额外检查来源、知识锚点、原始教师要求与课程思政 |
+
+事实型案例不得仅依靠 Prompt 自律。编排器先执行真实性预检；命中审核资料包后，CasePlanner 保留教师原始要求，DomainExpert 声明事实边界，CaseWriter 仅组织已审核事实，Reviewer 检查正文引用与来源表。没有课程级资料包时直接停止，不调用通用虚构模板。
 
 每次生成会把 Agent 对应的 Skill 名称、修订号和所选参考资料写入 `meta.skill_trace`，方便追溯线上案例使用了哪套方法。
 

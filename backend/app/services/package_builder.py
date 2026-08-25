@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from typing import Any
 
 from app.models import CaseTask
 from app.services.rubric_service import score_package
-from app.services.material_service import material_context_signature, recommended_materials
+from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
+from app.services.material_service import get_official_material, material_context_signature, recommended_materials
 
 
 def count_case_body_chars(package: dict[str, Any]) -> int:
@@ -196,8 +198,82 @@ def _objectives(task: CaseTask) -> list[dict[str, Any]]:
     ]
 
 
+def _build_grounded_package(task: CaseTask, profile: dict[str, Any]) -> dict[str, Any]:
+    """Assemble an audited factual package without generic fictional filler."""
+    title = task.title
+    subject = task.subject
+    course = task.course_name
+    learning_objectives = deepcopy(profile.get("learning_objectives") or [])
+    sources = deepcopy(profile.get("evidence_sources") or [])
+    assets = [
+        dict(asset)
+        for asset_id in profile.get("visual_asset_ids") or []
+        if (asset := get_official_material(str(asset_id))) is not None
+    ]
+    material_query = f"{title} {subject} {course} {task.case_type}"
+    package: dict[str, Any] = {
+        "meta": {
+            "title": title,
+            "subject": subject,
+            "course": course,
+            "difficulty": task.difficulty,
+            "case_type": task.case_type,
+            "target_audience": task.target_audience,
+            "target_words": task.target_words,
+            "content_mode": "source_grounded",
+            "source_policy": "仅陈述来源支持的事实；课堂角色不冒充真实历史人物；推断必须明确标注",
+            "fictional_disclaimer": "本案例依据公开可核验资料编写；课堂模拟角色仅用于方法训练，不代表未公开历史事实。",
+        },
+        "teacher_requirements": {
+            "original": list(task.learning_objectives or []),
+            **deepcopy(profile.get("teacher_brief") or {}),
+            "special_requirements": str((task.config or {}).get("special_requirements") or ""),
+        },
+        "learning_objectives": learning_objectives,
+        "body": {
+            **deepcopy(profile.get("body") or {}),
+            "characters": deepcopy(profile.get("characters") or []),
+        },
+        "discussion_questions": deepcopy(profile.get("discussion_questions") or []),
+        "instructor_guide": {
+            "teaching_flow": build_teaching_flow(int((task.config or {}).get("class_hours") or 2)),
+            **deepcopy(profile.get("instructor_guide") or {}),
+            "extension_reading": [f"[{source['id']}] {source['title']}｜{source['source_page_url']}" for source in sources],
+        },
+        "alignment_matrix": [
+            {
+                "objective_id": objective["id"],
+                "case_section": "真实案例证据链与课堂迁移任务",
+                "activity": "证据卡研讨、闭环建模与角色模拟",
+                "assessment": objective.get("assessment_hint") or "课堂汇报",
+            }
+            for objective in learning_objectives
+        ],
+        "evidence_sources": sources,
+        "course_ideology": deepcopy(profile.get("course_ideology") or {}),
+        "visual_assets": assets,
+        "material_research": {
+            "context_signature": material_context_signature(title, subject, course, task.case_type),
+            "query": material_query,
+            "strategy": "curated_source_grounded_profile",
+            "matched_count": len(assets),
+            "profile_id": profile.get("id"),
+        },
+        "quality": {},
+    }
+    update_body_length_meta(package, task.target_words)
+    score_package(package)
+    return package
+
+
 def build_structured_package(task: CaseTask, *, domain_notes: str | None = None) -> dict[str, Any]:
     """根据任务参数生成完整 CasePackage（无 LLM 时的高质量结构化产出）。"""
+    profile = find_grounded_profile(task)
+    if profile:
+        return _build_grounded_package(task, profile)
+    preflight_error = generation_preflight_error(task)
+    if preflight_error:
+        raise ValueError(preflight_error)
     lo_items = _objectives(task)
     title = task.title
     subject = task.subject

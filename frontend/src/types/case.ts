@@ -57,6 +57,8 @@ export interface CasePackage {
     actual_words?: number
     word_count_scope?: string
     fictional_disclaimer?: string
+    content_mode?: 'fictional_teaching_case' | 'source_grounded'
+    source_policy?: string
   }
   learning_objectives: LearningObjective[]
   body: {
@@ -83,6 +85,27 @@ export interface CasePackage {
     query: string
     strategy: string
     matched_count?: number
+  }
+  teacher_requirements?: {
+    original?: string[]
+    knowledge_anchors?: string[]
+    teaching_problem?: string
+    authenticity_required?: boolean
+    ideology_required?: boolean
+    special_requirements?: string
+  }
+  evidence_sources?: Array<{
+    id: string
+    title: string
+    source_org: string
+    source_page_url: string
+    published_at?: string
+    usage: string
+  }>
+  course_ideology?: {
+    figure?: string
+    themes?: string[]
+    implementation?: string
   }
   quality?: {
     overall_score?: number

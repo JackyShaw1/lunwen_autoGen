@@ -165,6 +165,29 @@ def _add_docx_visual_materials(doc: Document, package: dict) -> None:
         source_run.font.color.rgb = RGBColor.from_string("64748B")
 
 
+def _add_docx_evidence_sources(doc: Document, package: dict) -> None:
+    sources = package.get("evidence_sources") or []
+    if not sources:
+        return
+    doc.add_heading("八、事实来源与引用说明", level=1)
+    intro = doc.add_paragraph("正文中的 [S1]、[S2] 等标记与下列来源一一对应。课堂讲授时应区分公开事实、分析推断与教学任务，不补写未公开数据或人物对话。")
+    for run in intro.runs:
+        _set_run_font(run, "微软雅黑", 9)
+        run.font.color.rgb = RGBColor.from_string("64748B")
+    for source in sources:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(8)
+        label = p.add_run(f"[{source.get('id', '')}] {source.get('title', '')}\n")
+        _set_run_font(label, "微软雅黑", 10, True)
+        detail = p.add_run(
+            f"{source.get('source_org', '')}"
+            f"{f' · {source.get('published_at')}' if source.get('published_at') else ''}\n"
+            f"用途：{source.get('usage', '')}\n{source.get('source_page_url', '')}"
+        )
+        _set_run_font(detail, "宋体", 9)
+        detail.font.color.rgb = RGBColor.from_string("475569")
+
+
 def _configure_docx(doc: Document, course: str) -> None:
     section = doc.sections[0]
     section.top_margin = Cm(2.2)
@@ -334,9 +357,11 @@ def export_docx(package: dict, title: str, version: int = 1) -> str:
                 run = p.add_run(str(item))
                 _set_run_font(run, "宋体", 11)
 
+    _add_docx_evidence_sources(doc, package)
+
     matrix = package.get("alignment_matrix") or []
     if matrix:
-        doc.add_heading("八、教学目标对齐表", level=1)
+        doc.add_heading("九、教学目标对齐表", level=1)
         table = doc.add_table(rows=1, cols=4)
         table.style = "Table Grid"
         for cell, header_text in zip(table.rows[0].cells, ("教学目标", "案例环节", "课堂活动", "评价方式")):
@@ -354,7 +379,7 @@ def export_docx(package: dict, title: str, version: int = 1) -> str:
                     _set_run_font(run, "宋体", 9)
 
     if quality:
-        doc.add_heading("九、质量评审", level=1)
+        doc.add_heading("十、质量评审", level=1)
         score = doc.add_paragraph()
         score_run = score.add_run(f"综合评分  {quality.get('overall_score', '—')} / 5")
         _set_run_font(score_run, "微软雅黑", 13, True)
@@ -512,9 +537,22 @@ def export_pdf(package: dict, title: str, version: int = 1) -> str:
             for item in items:
                 story.append(Paragraph(_pdf_escape(f"•　{item}"), plain_style))
 
+    evidence_sources = package.get("evidence_sources") or []
+    if evidence_sources:
+        story.append(Paragraph("八、事实来源与引用说明", h1_style))
+        story.append(Paragraph("正文中的 [S1]、[S2] 等标记与下列来源一一对应；不得补写未公开数据或人物对话。", tip_style))
+        for source in evidence_sources:
+            source_text = (
+                f"[{source.get('id', '')}] {source.get('title', '')}<br/>"
+                f"{source.get('source_org', '')}"
+                f"{' · ' + str(source.get('published_at')) if source.get('published_at') else ''}<br/>"
+                f"用途：{source.get('usage', '')}<br/>{source.get('source_page_url', '')}"
+            )
+            story.append(Paragraph(_pdf_escape(source_text).replace("&lt;br/&gt;", "<br/>"), table_style))
+
     matrix = package.get("alignment_matrix") or []
     if matrix:
-        story.append(Paragraph("八、教学目标对齐表", h1_style))
+        story.append(Paragraph("九、教学目标对齐表", h1_style))
         data = [[Paragraph(text, table_style) for text in ("教学目标", "案例环节", "课堂活动", "评价方式")]]
         for row in matrix:
             data.append([Paragraph(_pdf_escape(str(row.get(key, ""))), table_style) for key in ("objective_id", "case_section", "activity", "assessment")])
@@ -530,7 +568,7 @@ def export_pdf(package: dict, title: str, version: int = 1) -> str:
         story.append(table)
 
     if quality:
-        story.append(Paragraph("九、质量评审", h1_style))
+        story.append(Paragraph("十、质量评审", h1_style))
         story.append(Paragraph(_pdf_escape(f"综合评分　{quality.get('overall_score', '—')} / 5"), h2_style))
         story.extend(paragraph_blocks(quality.get("reviewer_summary", "") or "（无）", plain_style))
 

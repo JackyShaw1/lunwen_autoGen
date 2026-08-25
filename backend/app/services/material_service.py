@@ -20,6 +20,7 @@ ALLOWED_IMAGE_HOSTS = {
     "media.ctg.com.cn", "www.ctg.com.cn", "ctg.com.cn", "dam.nea.gov.cn",
     "www.chizhou.gov.cn", "www.shanghai.gov.cn", "www.yidaiyilu.gov.cn",
     "www.news.cn", "sciencep.cas.cn",
+    "www.cmse.gov.cn", "statistics.cmse.gov.cn",
 }
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 GENERIC_KEYWORDS = {

@@ -18,6 +18,7 @@ from app.schemas import (
     PptOutlineRequest,
 )
 from app.services.export_service import export_docx, export_pdf
+from app.services.grounded_case_service import generation_preflight_error
 from app.services.orchestrator import consume_quota, run_generation
 from app.services.objective_generator import generate_objectives
 from app.services.package_builder import normalize_case_package
@@ -165,6 +166,9 @@ async def start_generate(
         raise HTTPException(400, "案例已经生成完成，请直接查看案例详情")
     if task.status not in ("draft", "failed"):
         raise HTTPException(400, f"当前任务状态不允许生成：{task.status}")
+    preflight_error = generation_preflight_error(task)
+    if preflight_error:
+        raise HTTPException(400, preflight_error)
     if user.quota_remaining is not None and user.quota_remaining <= 0 and task.status == "draft":
         raise HTTPException(400, "生成配额已用尽")
 

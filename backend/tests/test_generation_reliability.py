@@ -1,4 +1,5 @@
 import re
+import json
 import unittest
 
 from sqlalchemy import create_engine
@@ -15,6 +16,7 @@ from app.services.package_builder import (
     fit_teaching_flow_to_class_hours,
     normalize_case_package,
 )
+from app.services.grounded_case_service import generation_preflight_error
 from app.services.skill_loader import validate_package_with_skill
 
 
@@ -33,7 +35,7 @@ def make_task(class_hours: int = 1) -> CaseTask:
             "设计可执行的综合集成方案",
         ],
         workflow_template="sequential_standard",
-        config={"class_hours": class_hours, "special_requirements": "数据准确，切忌编造。"},
+        config={"class_hours": class_hours, "special_requirements": ""},
         status="draft",
     )
 
@@ -43,6 +45,31 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_strict_teacher_brief_uses_reviewed_sources_and_never_fictional_template(self) -> None:
+        task = make_task(1)
+        task.learning_objectives = [
+            "以钱学森为代表的综合集成方法论，匹配适合和前沿的案例",
+            "通过闭环和反馈思想解决实际问题，培养本科生系统工程思维",
+            "包含课程思政和灵魂人物",
+        ]
+        task.config = {"class_hours": 1, "special_requirements": "生成的案例不能虚假，数据准确，切忌编造。"}
+        package = build_structured_package(task)
+        visible = "".join(str(package["body"].get(key, "")) for key in ("background", "narrative", "decision_point"))
+        self.assertEqual(package["meta"]["content_mode"], "source_grounded")
+        self.assertGreaterEqual(len(package["evidence_sources"]), 2)
+        json.dumps(package, ensure_ascii=False)
+        self.assertNotIn("某组织", visible)
+        self.assertNotIn("陈启明", visible)
+        self.assertTrue(2660 <= len(re.sub(r"\s+", "", visible)) <= 2940)
+        validation = validate_package_with_skill(package, _task_context(task))
+        self.assertTrue(validation["passed"], validation["issues"])
+
+    def test_strict_factual_case_without_reviewed_profile_stops_before_fabrication(self) -> None:
+        task = make_task(1)
+        task.title = "尚未建立事实资料包的新课程"
+        task.config = {"class_hours": 1, "special_requirements": "真实案例，不得虚构。"}
+        self.assertIsNotNone(generation_preflight_error(task))
+
     def test_all_supported_class_hours_fit_quality_gate(self) -> None:
         for hours in range(1, 9):
             with self.subTest(hours=hours):

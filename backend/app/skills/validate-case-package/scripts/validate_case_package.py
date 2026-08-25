@@ -52,6 +52,58 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
     if any(phrase in narrative for phrase in ("目标字数", "目标篇幅", "案例类型为")):
         issues.append(_issue("warning", "instructional_meta", "学生正文中出现生成或配置元语言", "body.narrative"))
 
+    requirement_text = " ".join(
+        str(value)
+        for value in [
+            *(task_context.get("learning_objectives") or []),
+            (task_context.get("config") or {}).get("special_requirements", ""),
+        ]
+    )
+    strict_grounding = any(
+        term in requirement_text
+        for term in (
+            "不能虚假", "不得虚构", "禁止虚构", "不允许虚构", "切忌编造", "不要编造", "禁止编造",
+            "数据准确", "真实案例", "事实准确",
+        )
+    )
+    if strict_grounding:
+        meta = package.get("meta") or {}
+        if meta.get("content_mode") != "source_grounded":
+            issues.append(_issue("error", "grounding_mode_missing", "教师要求事实准确，案例必须使用来源约束模式", "meta.content_mode"))
+        if "教学虚构" in str(meta.get("fictional_disclaimer") or ""):
+            issues.append(_issue("error", "fictional_content_forbidden", "教师禁止虚构，但案例仍标记为教学虚构", "meta.fictional_disclaimer"))
+        sources = package.get("evidence_sources") or []
+        if len(sources) < 2:
+            issues.append(_issue("error", "insufficient_evidence_sources", "事实案例至少需要两个可追溯权威来源", "evidence_sources"))
+        source_ids: set[str] = set()
+        for index, source in enumerate(sources):
+            source_id = str(source.get("id") or "") if isinstance(source, dict) else ""
+            if not source_id or source_id in source_ids:
+                issues.append(_issue("error", "invalid_evidence_source", "事实来源ID缺失或重复", f"evidence_sources.{index}"))
+            source_ids.add(source_id)
+            if not isinstance(source, dict) or not all(str(source.get(key) or "").strip() for key in ("title", "source_org", "source_page_url", "usage")):
+                issues.append(_issue("error", "incomplete_evidence_source", "事实来源缺少标题、机构、链接或用途", f"evidence_sources.{index}"))
+            elif not str(source.get("source_page_url") or "").startswith("https://"):
+                issues.append(_issue("error", "unsafe_evidence_source", "事实来源必须使用HTTPS地址", f"evidence_sources.{index}.source_page_url"))
+            elif f"[{source_id}]" not in visible_body:
+                issues.append(_issue("error", "uncited_evidence_source", f"来源 {source_id} 未在正文中引用", "body"))
+        teacher_requirements = package.get("teacher_requirements") or {}
+        original = teacher_requirements.get("original") or []
+        if len(original) != len(task_context.get("learning_objectives") or []):
+            issues.append(_issue("error", "teacher_requirement_loss", "教师原始要求在Agent传递中丢失", "teacher_requirements.original"))
+        anchors = teacher_requirements.get("knowledge_anchors") or []
+        missing_anchors = [anchor for anchor in anchors if re.sub(r"\s+", "", str(anchor)) not in re.sub(r"\s+", "", visible_body)]
+        if missing_anchors:
+            issues.append(_issue("error", "knowledge_anchor_missing", "正文未覆盖教师指定知识点：" + "、".join(missing_anchors), "body"))
+        if teacher_requirements.get("ideology_required"):
+            ideology = package.get("course_ideology") or {}
+            if not ideology.get("figure") or not ideology.get("themes") or not ideology.get("implementation"):
+                issues.append(_issue("error", "course_ideology_missing", "教师要求课程思政，但人物、主题或融入方式不完整", "course_ideology"))
+        fictional_names = {"陈启明", "林晓雯", "赵磊"}
+        used_names = {str(item.get("name") or "") for item in body.get("characters") or [] if isinstance(item, dict)}
+        if fictional_names & used_names:
+            issues.append(_issue("error", "generic_fictional_characters", "事实案例混入通用虚构人物", "body.characters"))
+
     questions = package.get("discussion_questions") or []
     if len(questions) < 5:
         issues.append(_issue("error", "insufficient_questions", "讨论题至少需要 5 道", "discussion_questions"))

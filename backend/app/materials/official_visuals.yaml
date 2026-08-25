@@ -170,3 +170,29 @@
   course_tags: [系统工程, 综合集成, 综合集成方法论, 开放复杂巨系统, 钱学森]
   keywords: [系统工程, 综合集成, 专家团队, 知识协同, 多学科, 组织机制]
   rights_notice: 来源为中国科学院主管科学出版社官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-space-station-t-shape
+  title: 中国空间站三舱T字基本构型
+  caption: 天和、问天、梦天三舱完成在轨组装，直观呈现整体功能分解、舱段接口、适度冗余与系统集成。
+  source_org: 中国载人航天工程网
+  source_page_url: https://www.cmse.gov.cn/xwzx/202211/t20221107_51360.html
+  image_url: https://www.cmse.gov.cn/xwzx/202211/W020221107373962259321.png
+  published_at: 2022-11-03
+  photographer: 中国载人航天工程网
+  section_hint: 总体集成
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [三舱组合体, T字构型, 整体设计, 功能分解, 系统集成, 适度冗余, 接口管理]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-space-station-system-plan
+  title: 天宫空间站系统方案示意
+  caption: 官方系统方案图展示三舱、载人飞船和货运飞船等组成关系，适合用于绘制系统边界、输入输出与反馈链。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340396440559.jpg
+  published_at: 2023-01-17
+  photographer: 中国载人航天工程网
+  section_hint: 系统边界
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [系统方案, 空间站, 三舱, 载人飞船, 货运飞船, 系统边界, 闭环反馈]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。

@@ -343,6 +343,21 @@ export default function CaseDetail() {
 
         {tab === 'materials' && (
           <div className="mx-auto max-w-6xl space-y-7">
+            {!!view.evidence_sources?.length && (
+              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5 md:p-6">
+                <div className="flex items-center gap-2 text-sm font-bold text-emerald-800"><ShieldCheck size={17} />案例事实来源 · {view.evidence_sources.length} 条</div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">正文中的 [S1]、[S2] 等标记可在这里逐条核验。系统明确区分公开事实、分析推断和课堂模拟，不用虚构内容补齐故事。</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {view.evidence_sources.map((source) => (
+                    <article key={source.id} className="rounded-xl border border-emerald-100 bg-white p-4">
+                      <div className="flex items-start gap-3"><span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">[{source.id}]</span><div className="min-w-0"><h3 className="font-bold leading-6 text-slate-900">{source.title}</h3><p className="mt-1 text-xs text-slate-500">{source.source_org}{source.published_at ? ` · ${source.published_at}` : ''}</p></div></div>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{source.usage}</p>
+                      <a href={source.source_page_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline">核验官网原文<ExternalLink size={12} /></a>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
             <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-5 md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="max-w-3xl">

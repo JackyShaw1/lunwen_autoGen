@@ -253,6 +253,18 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
                 "notes": _speaker_note("教学目标对齐", "确认每项学习目标都有活动与评价证据。", [], 2),
             })
 
+    evidence_sources = package.get("evidence_sources") or []
+    for index in range(0, len(evidence_sources), 4):
+        page_sources = evidence_sources[index : index + 4]
+        slides.append({
+            "kind": "sources", "section": "事实核验", "title": "案例事实从哪里来" if index == 0 else "案例事实从哪里来 · 续",
+            "items": page_sources,
+            "notes": _speaker_note(
+                "事实来源", "说明正文引用标记与权威来源的对应关系，明确事实、推断和教学任务的边界。",
+                [f"[{item.get('id', '')}] {item.get('title', '')}" for item in page_sources], 2,
+            ),
+        })
+
     slides.append({
         "kind": "closing", "title": "回到决策现场",
         "content": "请基于案例证据形成判断，说明取舍依据、行动路径与风险应对。",
@@ -590,6 +602,17 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
                     fill = "FFFFFF" if row_index % 2 == 0 else palette["background"]
                     _shape(slide, x_positions[col], y, widths[col], row_h, fill, radius=False, line="D9E2E7")
                     _textbox(slide, _clean_text(value), x_positions[col] + 0.08, y + 0.05, widths[col] - 0.16, row_h - 0.1, size=10, color=palette["text"], valign=MSO_ANCHOR.MIDDLE)
+        elif kind == "sources":
+            for index, source in enumerate(spec.get("items") or []):
+                y = 1.52 + index * 1.3
+                _shape(slide, 0.72, y, 11.82, 1.08, palette["surface"], line="D9E2E7")
+                _textbox(slide, f"[{source.get('id', '')}]", 0.98, y + 0.2, 0.62, 0.3, size=12, color=palette["accent"], bold=True)
+                _textbox(slide, _clean_text(source.get("title")), 1.68, y + 0.13, 7.55, 0.38, size=15, color=palette["text"], bold=True)
+                _textbox(slide, _clean_text(source.get("source_org")), 9.38, y + 0.16, 2.75, 0.28, size=10, color=palette["muted"], align=PP_ALIGN.RIGHT)
+                _textbox(slide, _clean_text(source.get("usage")), 1.68, y + 0.59, 9.85, 0.28, size=9, color=palette["muted"])
+                link = _textbox(slide, "官网原文 ↗", 11.38, y + 0.58, 0.75, 0.24, size=8, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
+                if source.get("source_page_url"):
+                    link.click_action.hyperlink.address = source["source_page_url"]
         elif kind == "closing":
             _shape(slide, 0.72, 1.8, 11.82, 3.7, palette["primary"], radius=True)
             _textbox(slide, spec.get("content", ""), 1.2, 2.34, 10.85, 1.55, size=27, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER, valign=MSO_ANCHOR.MIDDLE)
