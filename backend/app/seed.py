@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.database import Base, engine, SessionLocal
-from app.models import AgentConfig, User
+from app.models import AgentConfig, CaseTask, SystemMeta, User
 from app.services.auth_service import hash_password
 from app.dependencies import load_agent_yaml_files
 from app.config import settings
@@ -43,6 +43,28 @@ def _sync_bundled_agent_configs(db) -> None:
         )
 
 
+def _migrate_v30_registration_quotas(db) -> None:
+    """把旧版 5 次试用升级为 30 次总额度；只迁移一次且保留已消耗次数。"""
+    marker_key = "registration-quota-v30"
+    if db.get(SystemMeta, marker_key):
+        return
+
+    legacy_users = (
+        db.query(User)
+        .filter(User.role == "teacher", User.quota_remaining <= 5)
+        .all()
+    )
+    for user in legacy_users:
+        consumed = (
+            db.query(CaseTask)
+            .filter(CaseTask.user_id == user.id, CaseTask.status != "draft")
+            .count()
+        )
+        user.quota_remaining = max(user.quota_remaining, settings.default_registration_quota - consumed, 0)
+
+    db.add(SystemMeta(key=marker_key, value=f"migrated_users={len(legacy_users)}"))
+
+
 def init_db():
     data_dir = Path("./data")
     data_dir.mkdir(exist_ok=True)
@@ -50,6 +72,7 @@ def init_db():
 
     db = SessionLocal()
     try:
+        _migrate_v30_registration_quotas(db)
         if settings.seed_demo_users:
             if not db.query(User).filter(User.email == "teacher@university.edu.cn").first():
                 db.add(

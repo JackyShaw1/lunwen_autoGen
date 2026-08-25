@@ -25,6 +25,16 @@ class User(Base):
     cases: Mapped[list["CaseTask"]] = relationship(back_populates="user")
 
 
+class SystemMeta(Base):
+    """一次性数据迁移标记，防止服务重启时重复补发额度。"""
+
+    __tablename__ = "system_meta"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class CaseTask(Base):
     __tablename__ = "case_tasks"
 
