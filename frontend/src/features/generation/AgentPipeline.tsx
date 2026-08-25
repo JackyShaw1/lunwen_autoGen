@@ -80,6 +80,7 @@ export function AgentPipeline({
                 {agent.status === 'completed' && <Badge variant="green">完成</Badge>}
                 {agent.status === 'running' && <Badge variant="yellow">运行中</Badge>}
                 {agent.status === 'pending' && <Badge variant="gray">等待</Badge>}
+                {agent.status === 'failed' && <Badge variant="red">失败</Badge>}
               </div>
               {agent.output_summary && (
                 <p className="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 line-clamp-3">

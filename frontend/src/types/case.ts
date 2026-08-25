@@ -161,4 +161,5 @@ export interface AgentProgressMessage {
     done: boolean
   }
   error?: string
+  failure_stage?: 'agent_execution' | 'quality_gate' | null
 }

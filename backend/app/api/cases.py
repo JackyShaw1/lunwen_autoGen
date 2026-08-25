@@ -161,6 +161,10 @@ async def start_generate(
         raise HTTPException(404, "任务不存在")
     if task.status == "running":
         raise HTTPException(400, "任务正在生成中")
+    if task.status in ("completed", "finalized"):
+        raise HTTPException(400, "案例已经生成完成，请直接查看案例详情")
+    if task.status not in ("draft", "failed"):
+        raise HTTPException(400, f"当前任务状态不允许生成：{task.status}")
     if user.quota_remaining is not None and user.quota_remaining <= 0 and task.status == "draft":
         raise HTTPException(400, "生成配额已用尽")
 
@@ -186,16 +190,36 @@ def get_live_progress(
         return state
     # 无内存进度时按任务状态兜底
     done = task.status in ("finalized", "completed")
+    recent_logs = (
+        db.query(AgentRunLog)
+        .filter(AgentRunLog.task_id == task_id)
+        .order_by(AgentRunLog.created_at.desc())
+        .all()
+    )
+    latest_attempt_logs: list[AgentRunLog] = []
+    for log in recent_logs:
+        latest_attempt_logs.append(log)
+        if log.agent_name == "CasePlanner":
+            break
+    completed_agents = {log.agent_name for log in latest_attempt_logs}
     return {
         "type": "agent_progress",
         "task_id": task_id,
         "overall_progress": 100 if done else (1 if task.status == "running" else 0),
         "current_agent": None,
-        "agents": [],
+        "agents": [
+            {
+                "name": name,
+                "status": "completed" if name in completed_agents else "pending",
+            }
+            for name in ("CasePlanner", "DomainExpert", "CaseWriter", "PedagogyDesigner", "Reviewer")
+        ],
         "step_results": [],
         "task_meta": {"title": task.title, "subject": task.subject, "course_name": task.course_name},
         "status": task.status,
+        "error": task.error_message,
         "error_message": task.error_message,
+        "failure_stage": "quality_gate" if task.status == "failed" and len(completed_agents) == 5 else None,
     }
 
 

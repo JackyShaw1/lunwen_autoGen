@@ -1,0 +1,133 @@
+import re
+import unittest
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.database import Base
+from app.models import CasePackage, CaseTask, User
+from app.seed import _recover_interrupted_generation_tasks
+from app.services.orchestrator import _task_context, _validate_agent_output
+from app.services.package_builder import (
+    build_structured_package,
+    build_teaching_flow,
+    ensure_mock_body_length,
+    fit_teaching_flow_to_class_hours,
+    normalize_case_package,
+)
+from app.services.skill_loader import validate_package_with_skill
+
+
+def make_task(class_hours: int = 1) -> CaseTask:
+    return CaseTask(
+        title="系统工程——综合集成方法论",
+        subject="管理学",
+        course_name="系统工程",
+        case_type="决策型",
+        difficulty="中级",
+        target_audience="本科",
+        target_words=2800,
+        learning_objectives=[
+            "分析综合集成方法的适用条件",
+            "评价不同利益相关者的系统边界判断",
+            "设计可执行的综合集成方案",
+        ],
+        workflow_template="sequential_standard",
+        config={"class_hours": class_hours, "special_requirements": "数据准确，切忌编造。"},
+        status="draft",
+    )
+
+
+def flow_minutes(flow: str) -> int:
+    return sum(int(value) for value in re.findall(r"(\d+)\s*(?:min|分钟)", flow, flags=re.I))
+
+
+class GenerationReliabilityTests(unittest.TestCase):
+    def test_all_supported_class_hours_fit_quality_gate(self) -> None:
+        for hours in range(1, 9):
+            with self.subTest(hours=hours):
+                task = make_task(hours)
+                package = build_structured_package(task)
+                ensure_mock_body_length(package, task)
+                flow = package["instructor_guide"]["teaching_flow"]
+                self.assertEqual(flow_minutes(flow), hours * 45)
+                validation = validate_package_with_skill(package, _task_context(task))
+                timing_errors = [
+                    issue for issue in validation["issues"]
+                    if issue.get("code") in {"timing_overflow", "timing_missing"}
+                ]
+                self.assertEqual(timing_errors, [])
+
+    def test_overflowing_model_schedule_is_repaired(self) -> None:
+        package = {"instructor_guide": {"teaching_flow": "阅读(20min)→讨论(25min)→汇报(20min)"}}
+        self.assertTrue(fit_teaching_flow_to_class_hours(package, 1))
+        self.assertEqual(flow_minutes(package["instructor_guide"]["teaching_flow"]), 45)
+        self.assertFalse(fit_teaching_flow_to_class_hours(package, 1))
+
+    def test_internal_notes_are_removed_from_every_student_body_field(self) -> None:
+        package = {
+            "body": {
+                "background": "背景正文。【学科注释】共同注释",
+                "narrative": "叙事正文。【学科注释】共同注释",
+                "decision_point": "决策正文。【学科注释】另一注释",
+            }
+        }
+        normalize_case_package(package)
+        visible = "".join(package["body"].values())
+        self.assertNotIn("【学科注释】", visible)
+        self.assertEqual(package["domain_context"]["notes"], "共同注释\n另一注释")
+
+    def test_pedagogy_contract_rejects_incomplete_release_fields(self) -> None:
+        task = make_task(1)
+        errors = _validate_agent_output(
+            "PedagogyDesigner",
+            {
+                "discussion_questions": [
+                    {"level": level, "question": f"问题{i}", "teaching_intent": "意图"}
+                    for i, level in enumerate(["理解", "分析", "评价", "创造", "分析"], 1)
+                ],
+                "instructor_guide": {"teaching_flow": build_teaching_flow(1), "key_points": []},
+                "alignment_matrix": [
+                    {"objective_id": f"LO{i}", "case_section": "正文", "activity": "讨论", "assessment": ""}
+                    for i in range(1, 4)
+                ],
+            },
+            task,
+        )
+        self.assertTrue(any("key_points" in error for error in errors))
+        self.assertTrue(any("common_misconceptions" in error for error in errors))
+        self.assertTrue(any("字段不完整" in error for error in errors))
+
+    def test_restart_recovers_running_tasks_without_leaving_them_stuck(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        try:
+            user = User(email="recovery@example.com", password_hash="hash", name="测试")
+            session.add(user)
+            session.flush()
+            with_package = make_task(1)
+            with_package.user_id = user.id
+            with_package.status = "running"
+            without_package = make_task(1)
+            without_package.user_id = user.id
+            without_package.title = "被重启中断的新任务"
+            without_package.status = "running"
+            session.add_all([with_package, without_package])
+            session.flush()
+            session.add(CasePackage(task_id=with_package.id, version=1, package={}, status="finalized"))
+            session.commit()
+
+            _recover_interrupted_generation_tasks(session)
+            session.commit()
+
+            self.assertEqual(with_package.status, "finalized")
+            self.assertIsNone(with_package.error_message)
+            self.assertEqual(without_package.status, "failed")
+            self.assertIn("重新生成", without_package.error_message)
+        finally:
+            session.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -18,6 +18,7 @@ from app.services.package_builder import (
     build_structured_package,
     count_case_body_chars,
     ensure_mock_body_length,
+    fit_teaching_flow_to_class_hours,
     merge_agent_output,
     normalize_case_package,
     update_body_length_meta,
@@ -107,7 +108,9 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
             "请输出 JSON，字段：discussion_questions[{level,question,teaching_intent}]（至少5题），"
             "instructor_guide{teaching_flow,key_points[],common_misconceptions[]}，"
             "alignment_matrix[{objective_id,case_section,activity,assessment}]。"
-            "讨论题至少覆盖 3 个认知层级，每个教学目标必须出现在对齐表中；授课流程总时长不得超过任务课时。"
+            "讨论题至少覆盖 3 个认知层级，每个教学目标必须出现在对齐表中；"
+            f"授课流程各环节必须明确分钟数，总时长不得超过 "
+            f"{int((task.config or {}).get('class_hours') or 2) * 45} 分钟。"
         ),
         "Reviewer": (
             "请输出 JSON，字段：rubric_scores{alignment,authenticity,discussion,structure,readability}，"
@@ -173,8 +176,15 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
                 ):
                     errors.append(f"第 {index} 道讨论题字段不完整")
         guide = data.get("instructor_guide")
-        if not isinstance(guide, dict) or not str(guide.get("teaching_flow") or "").strip():
-            errors.append("instructor_guide.teaching_flow 必须为非空字符串")
+        if not isinstance(guide, dict):
+            errors.append("instructor_guide 必须为对象")
+        else:
+            if not str(guide.get("teaching_flow") or "").strip():
+                errors.append("instructor_guide.teaching_flow 必须为非空字符串")
+            if not isinstance(guide.get("key_points"), list) or not guide["key_points"]:
+                errors.append("instructor_guide.key_points 必须为非空数组")
+            if not isinstance(guide.get("common_misconceptions"), list) or not guide["common_misconceptions"]:
+                errors.append("instructor_guide.common_misconceptions 必须为非空数组")
         matrix = data.get("alignment_matrix")
         expected = len(task.learning_objectives or [])
         if not isinstance(matrix, list) or len(matrix) < max(expected, 1):
@@ -184,6 +194,13 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
             missing = [f"LO{i}" for i in range(1, expected + 1) if f"LO{i}" not in present]
             if missing:
                 errors.append("alignment_matrix 缺少目标：" + "、".join(missing))
+        if isinstance(matrix, list):
+            for index, row in enumerate(matrix, 1):
+                if not isinstance(row, dict) or not all(
+                    str(row.get(key) or "").strip()
+                    for key in ("objective_id", "case_section", "activity", "assessment")
+                ):
+                    errors.append(f"alignment_matrix 第 {index} 行字段不完整")
 
     elif agent == "Reviewer":
         scores = data.get("rubric_scores")
@@ -498,6 +515,8 @@ async def _publish_state(
         "estimated_remaining_seconds": remaining,
         "step_results": step_results or [],
         "task_meta": task_meta or {},
+        "error": None,
+        "failure_stage": None,
     }
     if stream is not None:
         payload["stream"] = stream
@@ -607,6 +626,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         "target_words": task.target_words,
         "learning_objectives": task.learning_objectives or [],
         "workflow_template": task.workflow_template,
+        "class_hours": int((task.config or {}).get("class_hours") or 2),
     }
 
     latest = (
@@ -634,9 +654,16 @@ async def run_pipeline(db: Session, task_id: str) -> None:
     skill_trace: dict[str, list[dict[str, Any]]] = dict(
         (package.get("meta") or {}).get("skill_trace") or {}
     )
+    active_agent: str | None = None
+    failure_stage = "agent_execution"
+    attempt_round = db.query(AgentRunLog).filter(
+        AgentRunLog.task_id == task_id,
+        AgentRunLog.agent_name == AGENT_SEQUENCE[0],
+    ).count()
 
     try:
         for step_i, agent in enumerate(agents):
+            active_agent = agent
             idx = AGENT_SEQUENCE.index(agent)
             agent_cfg = _load_agent_config(db, agent)
             _, agent_skills = build_agent_skill_context(agent, agent_cfg, _task_context(task))
@@ -748,6 +775,18 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                 )
 
             package = merge_agent_output(package, agent, data)
+            if agent == "PedagogyDesigner":
+                adjusted = fit_teaching_flow_to_class_hours(
+                    package,
+                    int((task.config or {}).get("class_hours") or 2),
+                )
+                if adjusted:
+                    data = {
+                        "discussion_questions": package.get("discussion_questions", []),
+                        "instructor_guide": package.get("instructor_guide", {}),
+                        "alignment_matrix": package.get("alignment_matrix", []),
+                    }
+                    summary += "；授课流程已按课时自动校正"
             if agent == "CaseWriter":
                 if use_llm:
                     package, repair_tokens = await _repair_casewriter_length(
@@ -797,7 +836,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                 AgentRunLog(
                     task_id=task_id,
                     agent_name=agent,
-                    round=0,
+                    round=attempt_round,
                     input_summary=(
                         f"任务: {task.title}"
                         + " | Skills: "
@@ -839,7 +878,12 @@ async def run_pipeline(db: Session, task_id: str) -> None:
             score_package(package)
 
         normalize_case_package(package)
+        fit_teaching_flow_to_class_hours(
+            package,
+            int((task.config or {}).get("class_hours") or 2),
+        )
         package.setdefault("meta", {})["skill_trace"] = skill_trace
+        failure_stage = "quality_gate"
         validation = validate_package_with_skill(package, _task_context(task))
         package.setdefault("quality", {})["validation"] = validation
         validation_errors = [
@@ -878,20 +922,23 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         task.error_message = str(exc)[:500]
         task.updated_at = datetime.now(timezone.utc)
         db.commit()
+        failed_agents = _build_agents_state(len(step_map), None, step_map=step_map)
+        if failure_stage == "agent_execution" and active_agent:
+            for item in failed_agents:
+                if item["name"] == active_agent and item["status"] != "completed":
+                    item["status"] = "failed"
         await progress_hub.publish(
             task_id,
             {
                 "type": "agent_progress",
                 "task_id": task_id,
-                "overall_progress": 0,
+                "overall_progress": 99 if failure_stage == "quality_gate" else int(len(step_map) / len(AGENT_SEQUENCE) * 100),
                 "current_agent": None,
-                "agents": [
-                    {"name": n, "status": "failed" if n == AGENT_SEQUENCE[0] else "pending"}
-                    for n in AGENT_SEQUENCE
-                ],
+                "agents": failed_agents,
                 "step_results": step_results,
                 "task_meta": task_meta,
                 "error": str(exc),
+                "failure_stage": failure_stage,
             },
         )
 

@@ -26,22 +26,61 @@ def update_body_length_meta(package: dict[str, Any], target_words: int) -> int:
     return actual
 
 
-def normalize_case_package(package: dict[str, Any]) -> dict[str, Any]:
-    """Remove legacy internal annotations from student-facing text and preserve them once."""
-    body = package.setdefault("body", {})
-    background = str(body.get("background") or "")
-    if "【学科注释】" not in background:
-        return package
+def build_teaching_flow(class_hours: int) -> str:
+    """Build a complete teaching schedule that always fits the configured 45-minute periods."""
+    hours = max(int(class_hours or 1), 1)
+    total = hours * 45
+    phases = [
+        ("情境导入与案例阅读", 18),
+        ("小组分析与方案形成", 30),
+        ("小组汇报与交叉质询", 27),
+        ("教师点评与理论回扣", 16),
+    ]
+    minutes: list[int] = []
+    allocated = 0
+    for _, weight in phases[:-1]:
+        value = max(round(total * weight / 100), 1)
+        minutes.append(value)
+        allocated += value
+    minutes.append(max(total - allocated, 1))
+    steps = "→".join(f"{label}({minute}min)" for (label, _), minute in zip(phases, minutes))
+    # Do not repeat the numeric total with a “分钟” suffix here: the release validator
+    # intentionally sums every explicit minute value in the flow.
+    return f"建议 {hours} 课时：{steps}"
 
-    parts = re.split(r"\s*【学科注释】\s*", background)
-    body["background"] = parts[0].strip()
+
+def fit_teaching_flow_to_class_hours(package: dict[str, Any], class_hours: int) -> bool:
+    """Replace absent or overflowing model schedules with a deterministic valid schedule."""
+    guide = package.setdefault("instructor_guide", {})
+    flow = str(guide.get("teaching_flow") or "")
+    minutes = sum(int(value) for value in re.findall(r"(\d+)\s*(?:min|分钟)", flow, flags=re.I))
+    available = max(int(class_hours or 1), 1) * 45
+    if not flow.strip() or minutes == 0 or minutes > available:
+        guide["teaching_flow"] = build_teaching_flow(class_hours)
+        return True
+    return False
+
+
+def normalize_case_package(package: dict[str, Any]) -> dict[str, Any]:
+    """Remove internal annotations from all student-facing body fields and preserve them once."""
+    body = package.setdefault("body", {})
     existing_context = package.get("domain_context") or {}
     existing_notes = (
         existing_context.get("notes", "")
         if isinstance(existing_context, dict)
         else str(existing_context)
     )
-    candidates = [existing_notes, *parts[1:]]
+    candidates = [existing_notes]
+    changed = False
+    for key in ("background", "narrative", "decision_point"):
+        text = str(body.get(key) or "")
+        if "【学科注释】" not in text:
+            continue
+        parts = re.split(r"\s*【学科注释】\s*", text)
+        body[key] = parts[0].strip()
+        candidates.extend(parts[1:])
+        changed = True
+
     unique_notes: list[str] = []
     seen: set[str] = set()
     for note in candidates:
@@ -52,6 +91,8 @@ def normalize_case_package(package: dict[str, Any]) -> dict[str, Any]:
             unique_notes.append(cleaned)
     if unique_notes:
         package["domain_context"] = {"notes": "\n".join(unique_notes)}
+    if not changed:
+        return package
     target_words = int((package.get("meta") or {}).get("target_words") or 0)
     if target_words:
         update_body_length_meta(package, target_words)
@@ -161,7 +202,7 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
     title = task.title
     subject = task.subject
     course = task.course_name
-    hours = (task.config or {}).get("class_hours") or 2
+    hours = int((task.config or {}).get("class_hours") or 2)
     special = (task.config or {}).get("special_requirements") or ""
 
     characters = [
@@ -235,10 +276,7 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
             },
         ],
         "instructor_guide": {
-            "teaching_flow": (
-                f"建议 {hours} 课时：阅读案例(20min)→小组讨论决策点(25min)"
-                "→班级汇报与教师点评(20min)→总结对齐教学目标(余下时间)"
-            ),
+            "teaching_flow": build_teaching_flow(hours),
             "key_points": [
                 "利益相关方分析",
                 "决策标准与风险权衡",

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.database import Base, engine, SessionLocal
-from app.models import AgentConfig, CaseTask, SystemMeta, User
+from app.models import AgentConfig, CasePackage, CaseTask, SystemMeta, User
 from app.services.auth_service import hash_password
 from app.dependencies import load_agent_yaml_files
 from app.config import settings
@@ -65,6 +65,24 @@ def _migrate_v30_registration_quotas(db) -> None:
     db.add(SystemMeta(key=marker_key, value=f"migrated_users={len(legacy_users)}"))
 
 
+def _recover_interrupted_generation_tasks(db) -> None:
+    """A process restart must never leave tasks permanently stuck in running state."""
+    interrupted = db.query(CaseTask).filter(CaseTask.status == "running").all()
+    for task in interrupted:
+        latest = (
+            db.query(CasePackage)
+            .filter(CasePackage.task_id == task.id)
+            .order_by(CasePackage.version.desc())
+            .first()
+        )
+        if latest:
+            task.status = "finalized" if latest.status == "finalized" else "completed"
+            task.error_message = None
+        else:
+            task.status = "failed"
+            task.error_message = "服务重启中断了生成任务，请点击重新生成；本次重试不会重复扣减额度"
+
+
 def init_db():
     data_dir = Path("./data")
     data_dir.mkdir(exist_ok=True)
@@ -73,6 +91,7 @@ def init_db():
     db = SessionLocal()
     try:
         _migrate_v30_registration_quotas(db)
+        _recover_interrupted_generation_tasks(db)
         if settings.seed_demo_users:
             if not db.query(User).filter(User.email == "teacher@university.edu.cn").first():
                 db.add(

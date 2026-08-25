@@ -16,6 +16,7 @@ export default function GenerationMonitor() {
   const [selectedAgent, setSelectedAgent] = useState<string>('CasePlanner')
   const [autoJump, setAutoJump] = useState(true)
   const [manualSelect, setManualSelect] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
     if (!id || started.current) return
@@ -27,6 +28,11 @@ export default function GenerationMonitor() {
         if (resume) return
         const st = await fetchCaseStatus(id)
         if (st.status === 'running') return
+        if (st.status === 'finalized' || st.status === 'completed') {
+          navigate(`/case/${id}`, { replace: true })
+          return
+        }
+        if (st.status === 'failed') return
         await startGeneration(id)
       } catch (err: unknown) {
         console.error(err)
@@ -37,7 +43,7 @@ export default function GenerationMonitor() {
       }
     }
     void boot()
-  }, [id, searchParams])
+  }, [id, searchParams, navigate])
 
   // 跟随进度：流式输出中锁定该 Agent；否则跟随 running / current
   useEffect(() => {
@@ -70,6 +76,23 @@ export default function GenerationMonitor() {
   const remain = progress.estimated_remaining_seconds
   const streaming = progress.stream && !progress.stream.done
 
+  const retry = async () => {
+    if (!id || retrying) return
+    setRetrying(true)
+    try {
+      await startGeneration(id)
+      setManualSelect(false)
+      setAutoJump(true)
+    } catch (err: unknown) {
+      alert(
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          '重新生成失败',
+      )
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -94,6 +117,18 @@ export default function GenerationMonitor() {
           完成后自动跳转详情
         </label>
       </div>
+
+      {progress.error && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="font-bold">
+            {progress.failure_stage === 'quality_gate' ? '最终质量校验未通过' : '生成环节执行失败'}
+          </div>
+          <p className="mt-1 leading-6">{progress.error}</p>
+          <Button className="mt-3" variant="outline" onClick={() => void retry()} disabled={retrying}>
+            {retrying ? '正在重新启动…' : '重新生成'}
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <div>
