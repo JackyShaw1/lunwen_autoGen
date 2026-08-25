@@ -12,6 +12,7 @@ venv/
 # Database
 backend/data/*.db
 backend/data/exports/
+backend/data/material_cache/
 
 # Runtime uploads
 uploads/

@@ -197,6 +197,21 @@ class CaseQuality(BaseModel):
     overall_score: float = 0.0
 
 
+class VisualAsset(BaseModel):
+    id: str
+    title: str
+    caption: str
+    source_org: str
+    source_page_url: str
+    image_url: str | None = None
+    preview_url: str
+    published_at: str | None = None
+    photographer: str | None = None
+    section_hint: str | None = None
+    rights_notice: str
+    official: bool = True
+
+
 class CasePackageSchema(BaseModel):
     meta: CaseMeta
     learning_objectives: list[LearningObjective]
@@ -204,4 +219,5 @@ class CasePackageSchema(BaseModel):
     discussion_questions: list[DiscussionQuestion]
     instructor_guide: InstructorGuide
     alignment_matrix: list[AlignmentRow]
+    visual_assets: list[VisualAsset] = []
     quality: CaseQuality | None = None

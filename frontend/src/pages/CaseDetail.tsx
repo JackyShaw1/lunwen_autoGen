@@ -5,16 +5,17 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Textarea } from '@/components/ui/Input'
-import { fetchCasePackage, saveCasePackage } from '@/features/cases/api'
-import type { CasePackage } from '@/types/case'
+import { fetchCasePackage, saveCasePackage, searchOfficialMaterials } from '@/features/cases/api'
+import type { CasePackage, VisualAsset } from '@/types/case'
 import { cn } from '@/lib/utils'
-import { BookOpenText, Clock3, Presentation, Quote, Users } from 'lucide-react'
+import { BookOpenText, Clock3, ExternalLink, Image as ImageIcon, Presentation, Quote, Search, ShieldCheck, Users, X } from 'lucide-react'
 
 const TABS = [
   { id: 'body', label: '案例正文' },
   { id: 'questions', label: '讨论题' },
   { id: 'guide', label: '教师参考' },
   { id: 'alignment', label: '目标对齐' },
+  { id: 'materials', label: '官方素材' },
 ] as const
 
 function splitReadingParagraphs(text?: string) {
@@ -56,6 +57,7 @@ export default function CaseDetail() {
   const [tab, setTab] = useState<string>('body')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<CasePackage | null>(null)
+  const [materialQuery, setMaterialQuery] = useState('')
 
   const { data: pkg, isLoading, error } = useQuery({
     queryKey: ['case-package', id],
@@ -69,6 +71,14 @@ export default function CaseDetail() {
       setEditing(false)
       qc.invalidateQueries({ queryKey: ['case-package', id] })
     },
+  })
+
+  const effectiveMaterialQuery = materialQuery.trim() || [pkg?.meta?.title, pkg?.meta?.subject, pkg?.meta?.course].filter(Boolean).join(' ')
+  const { data: materialResults = [], isFetching: materialsLoading } = useQuery({
+    queryKey: ['official-materials', effectiveMaterialQuery],
+    queryFn: () => searchOfficialMaterials(effectiveMaterialQuery),
+    enabled: tab === 'materials' && effectiveMaterialQuery.length >= 2,
+    staleTime: 10 * 60 * 1000,
   })
 
   if (isLoading) return <div className="text-gray-500">加载案例…</div>
@@ -96,6 +106,18 @@ export default function CaseDetail() {
   const startEdit = () => {
     setDraft(structuredClone(pkg))
     setEditing(true)
+  }
+
+  const addMaterial = (asset: VisualAsset) => {
+    if (!draft) return
+    const current = draft.visual_assets || []
+    if (current.some((item) => item.id === asset.id)) return
+    setDraft({ ...draft, visual_assets: [...current, asset].slice(0, 6) })
+  }
+
+  const removeMaterial = (assetId: string) => {
+    if (!draft) return
+    setDraft({ ...draft, visual_assets: (draft.visual_assets || []).filter((item) => item.id !== assetId) })
   }
 
   return (
@@ -316,6 +338,80 @@ export default function CaseDetail() {
               ))}
             </tbody>
           </table></div></div>
+        )}
+
+        {tab === 'materials' && (
+          <div className="mx-auto max-w-6xl space-y-7">
+            <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-5 md:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="max-w-3xl">
+                  <div className="flex items-center gap-2 text-sm font-bold text-primary"><ShieldCheck size={17} />可追溯的官网素材</div>
+                  <h2 className="mt-2 text-xl font-bold text-slate-950">用真实工程影像建立课堂现场感</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">系统只推荐经过目录审核的政府或机构官网图片，并保留来源、摄影者及使用提示。官网公开不等于可无限转载，公开发布或商业传播前仍需确认授权。</p>
+                </div>
+                {!editing && <Button variant="outline" onClick={startEdit}>编辑素材</Button>}
+              </div>
+              <div className="relative mt-5">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                <input
+                  value={materialQuery}
+                  onChange={(event) => setMaterialQuery(event.target.value)}
+                  placeholder={`搜索官方素材，例如：${view.meta.title}`}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+            </section>
+
+            {!!view.visual_assets?.length && (
+              <section>
+                <div className="mb-3 flex items-center justify-between"><h3 className="font-bold text-slate-900">已选入案例 · {view.visual_assets.length}/6</h3><span className="text-xs text-slate-500">会同步进入 Word、PDF 与 PPTX</span></div>
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {view.visual_assets.map((asset) => (
+                    <article key={asset.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <div className="relative aspect-[3/2] overflow-hidden bg-slate-100">
+                        <img src={asset.preview_url} alt={asset.title} className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]" />
+                        <span className="absolute left-3 top-3 rounded-full bg-emerald-600/95 px-2.5 py-1 text-[11px] font-bold text-white">官网来源</span>
+                        {editing && <button type="button" onClick={() => removeMaterial(asset.id)} className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/75 text-white hover:bg-red-600" aria-label={`移除${asset.title}`}><X size={15} /></button>}
+                      </div>
+                      <div className="p-4">
+                        <h4 className="font-bold text-slate-900">{asset.title}</h4>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{asset.caption}</p>
+                        <div className="mt-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+                          <p>{asset.source_org}{asset.photographer ? ` · 摄影：${asset.photographer}` : ''}</p>
+                          <a href={asset.source_page_url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 font-semibold text-primary hover:underline">查看官网原始页面<ExternalLink size={12} /></a>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div className="mb-3 flex items-center gap-2"><ImageIcon size={17} className="text-primary" /><h3 className="font-bold text-slate-900">推荐的官方素材</h3>{materialsLoading && <span className="text-xs text-slate-400">检索中…</span>}</div>
+              {!materialsLoading && materialResults.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-10 text-center text-sm text-slate-500">当前官方素材目录暂无匹配结果。系统不会用来源不明的网图代替。</div>
+              ) : (
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {materialResults.map((asset) => {
+                    const selected = !!view.visual_assets?.some((item) => item.id === asset.id)
+                    return <article key={asset.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <img src={asset.preview_url} alt={asset.title} className="aspect-[3/2] w-full bg-slate-100 object-cover" />
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3"><h4 className="font-bold text-slate-900">{asset.title}</h4><span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[10px] text-slate-500">{asset.section_hint}</span></div>
+                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{asset.caption}</p>
+                        <p className="mt-3 text-xs text-slate-500">来源：{asset.source_org}</p>
+                        <div className="mt-4 flex gap-2">
+                          <Button size="sm" disabled={!editing || selected || (view.visual_assets?.length || 0) >= 6} onClick={() => addMaterial(asset)}>{selected ? '已选入' : editing ? '加入案例' : '先点击编辑素材'}</Button>
+                          <a href={asset.source_page_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 text-xs font-semibold text-primary">官网<ExternalLink size={12} /></a>
+                        </div>
+                      </div>
+                    </article>
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </Card>
     </div>

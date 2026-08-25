@@ -29,6 +29,22 @@ export interface DiscussionQuestion {
   teaching_intent?: string
 }
 
+export interface VisualAsset {
+  id: string
+  title: string
+  caption: string
+  source_org: string
+  source_page_url: string
+  image_url?: string
+  preview_url: string
+  published_at?: string
+  photographer?: string
+  section_hint?: string
+  rights_notice: string
+  official: boolean
+  keywords?: string[]
+}
+
 export interface CasePackage {
   meta: {
     title: string
@@ -60,6 +76,7 @@ export interface CasePackage {
     activity: string
     assessment: string
   }>
+  visual_assets?: VisualAsset[]
   quality?: {
     overall_score?: number
     reviewer_summary?: string

@@ -14,6 +14,7 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 from app.config import settings
+from app.services.material_service import get_cached_material_image, resolve_package_materials
 
 
 _CN_FONT_CANDIDATES = [
@@ -133,6 +134,37 @@ def _add_docx_text(doc: Document, text: str, *, indent: bool = True) -> None:
         _set_run_font(run, "宋体", 11)
 
 
+def _add_docx_visual_materials(doc: Document, package: dict) -> None:
+    assets = resolve_package_materials(package)
+    if not assets:
+        return
+    doc.add_heading("官方视觉材料（教学引用）", level=2)
+    intro = doc.add_paragraph("以下图片来自标注的政府或机构官网，用于课堂教学引用；公开传播或商业再利用前请确认授权。")
+    for run in intro.runs:
+        _set_run_font(run, "微软雅黑", 9)
+        run.font.color.rgb = RGBColor.from_string("64748B")
+    for index, asset in enumerate(assets, 1):
+        try:
+            image_path = get_cached_material_image(asset["id"])
+            image_paragraph = doc.add_paragraph()
+            image_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            image_paragraph.add_run().add_picture(str(image_path), width=Cm(14.8))
+        except Exception:  # Export text and provenance even if the official host is temporarily unavailable.
+            unavailable = doc.add_paragraph("图片暂时无法获取，请通过原始来源页面查看。")
+            unavailable.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        caption = doc.add_paragraph()
+        caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = caption.add_run(f"图 {index}　{asset['title']}｜{asset['caption']}")
+        _set_run_font(run, "微软雅黑", 9, True)
+        source = doc.add_paragraph()
+        source.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        source_run = source.add_run(
+            f"来源：{asset['source_org']}　摄影：{asset.get('photographer') or '未标注'}　{asset['source_page_url']}"
+        )
+        _set_run_font(source_run, "微软雅黑", 8)
+        source_run.font.color.rgb = RGBColor.from_string("64748B")
+
+
 def _configure_docx(doc: Document, course: str) -> None:
     section = doc.sections[0]
     section.top_margin = Cm(2.2)
@@ -235,6 +267,7 @@ def export_docx(package: dict, title: str, version: int = 1) -> str:
 
     doc.add_heading("二、案例背景", level=1)
     _add_docx_text(doc, body.get("background", ""))
+    _add_docx_visual_materials(doc, package)
 
     doc.add_heading("三、案例正文", level=1)
     _add_docx_text(doc, body.get("narrative", ""))
@@ -364,7 +397,7 @@ def export_pdf(package: dict, title: str, version: int = 1) -> str:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     meta = package.get("meta", {}) or {}
     body = package.get("body", {}) or {}
@@ -421,6 +454,22 @@ def export_pdf(package: dict, title: str, version: int = 1) -> str:
 
     story.append(Paragraph("二、案例背景", h1_style))
     story.extend(paragraph_blocks(body.get("background", "")))
+    visual_assets = resolve_package_materials(package)
+    if visual_assets:
+        story.append(Paragraph("官方视觉材料（教学引用）", h2_style))
+        story.append(Paragraph("图片来自标注的政府或机构官网；公开传播或商业再利用前请确认授权。", tip_style))
+        for index, asset in enumerate(visual_assets, 1):
+            try:
+                image_path = get_cached_material_image(asset["id"])
+                image = Image(str(image_path), width=15.2 * cm, height=9.2 * cm, kind="proportional")
+                caption = Paragraph(_pdf_escape(f"图 {index}　{asset['title']}｜{asset['caption']}"), table_style)
+                source = Paragraph(
+                    _pdf_escape(f"来源：{asset['source_org']}　摄影：{asset.get('photographer') or '未标注'}　{asset['source_page_url']}"),
+                    tip_style,
+                )
+                story.append(KeepTogether([Spacer(1, .25 * cm), image, Spacer(1, .12 * cm), caption, source]))
+            except Exception:
+                story.append(Paragraph(_pdf_escape(f"{asset['title']}（图片暂时无法获取）｜来源：{asset['source_page_url']}"), tip_style))
     story.append(Paragraph("三、案例正文", h1_style))
     story.extend(paragraph_blocks(body.get("narrative", "")))
     story.append(Paragraph("四、关键决策点", h1_style))

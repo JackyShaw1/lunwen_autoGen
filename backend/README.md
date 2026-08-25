@@ -42,6 +42,8 @@ python -m app.main
 | GET/PUT | `/api/cases/{id}/package` | 读取/保存案例包（版本递增） |
 | POST | `/api/cases/{id}/ppt-outline` | 预览 PPT 课件目录 |
 | POST | `/api/cases/{id}/export` | 导出 Word/PDF/PPTX |
+| GET | `/api/materials/search?q=...` | 检索经审核的政府/机构官网视觉素材 |
+| GET | `/api/materials/{id}/image` | 安全代理并缓存目录内官方图片 |
 | GET | `/api/admin/agents` | Agent YAML 列表（管理员） |
 | WS | `/ws/cases/{id}` | 生成进度推送 |
 
@@ -87,3 +89,7 @@ backend/
 - PPTX：python-pptx；支持学术/现代/极简主题，简洁/标准/详细密度，教师版/学生版
 
 导出文件统一采用“课程主题_教学案例授课包（或课件）_V版本号”命名。
+
+## 官方视觉素材
+
+素材目录位于 `app/materials/official_visuals.yaml`。新增素材必须填写来源机构、原始页面、图片 URL、说明、关键词和权利提示。图片下载仅允许 HTTPS 官方域名白名单，限制 JPEG/PNG/WebP 和 8MB；导出时按素材 ID 解析可信目录，不接受用户提交的任意远程 URL。

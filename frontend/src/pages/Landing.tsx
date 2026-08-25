@@ -5,7 +5,7 @@ import {
   CheckCircle2,
   FileCheck2,
   GraduationCap,
-  Layers3,
+  Image as ImageIcon,
   ShieldCheck,
   Sparkles,
   TimerReset,
@@ -24,16 +24,16 @@ const outcomes = [
     desc: '从学习目标反推情境冲突和讨论路径，让案例真正可教、可讨论。',
   },
   {
-    icon: Layers3,
-    title: '保留教师最终判断',
-    desc: '每一部分都能编辑、重生成和版本保存，AI 提效但不替代专业决策。',
+    icon: ImageIcon,
+    title: '权威图片带回课堂现场',
+    desc: '按主题推荐政府或机构官网素材，保留来源、摄影者和使用提示，并同步进入授课包与课件。',
   },
 ]
 
 const steps = [
   ['01', '描述课程与目标', '填写主题、学生层次和希望达成的课堂目标'],
   ['02', 'AI 教研团队协作', '策划、学科、写作、教学设计和质量评审依次完成'],
-  ['03', '审阅并投入课堂', '在线修改后导出 Word 或 PDF 授课包'],
+  ['03', '审阅并投入课堂', '在线修改并选择官方素材后，导出 Word、PDF 或 PPTX'],
 ]
 
 export default function Landing() {
@@ -84,7 +84,7 @@ export default function Landing() {
               </div>
               <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-400">
                 <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-400" /> 教师全程可控</span>
-                <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-400" /> 支持 Word / PDF</span>
+                <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-400" /> 支持 Word / PDF / PPTX</span>
                 <span className="flex items-center gap-2"><TimerReset size={16} className="text-emerald-400" /> 节省约 8 小时/案例</span>
               </div>
             </div>
@@ -100,7 +100,7 @@ export default function Landing() {
                   <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">质量评分 4.7</span>
                 </div>
                 <div className="space-y-3 py-5">
-                  {['案例正文与关键决策点', '三层递进讨论题', '教师授课流程与参考答案', '学习目标对齐矩阵'].map((item, index) => (
+                  {['案例正文与关键决策点', '权威官网图片与来源', '分层讨论题与授课流程', '学习目标对齐矩阵'].map((item, index) => (
                     <div key={item} className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-primary">{index + 1}</span>
                       <span className="text-sm font-medium text-slate-700">{item}</span>

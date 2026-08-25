@@ -1,0 +1,47 @@
+- id: ctg-three-gorges-aerial
+  title: 三峡工程全景航拍
+  caption: 从空中观察大坝、厂房与上下游水域的整体空间关系，适合用于案例背景导入。
+  source_org: 中国长江三峡集团有限公司
+  source_page_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/index.html
+  image_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/2019072208410976779.jpg
+  published_at: 2019-07-22
+  photographer: 郑斌、汤伟、张祖新
+  section_hint: 案例背景
+  keywords: [三峡, 三峡工程, 三峡大坝, 水利工程, 风险管理, 项目管理, 工程管理, 防洪]
+  rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: ctg-three-gorges-axis
+  title: 三峡大坝右岸轴线鸟瞰枢纽工程全貌
+  caption: 展示枢纽工程多系统耦合关系，可用于识别土建、发电、通航与调度之间的接口风险。
+  source_org: 中国长江三峡集团有限公司
+  source_page_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/index.html
+  image_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/2019072208415670834.jpg
+  published_at: 2019-07-22
+  photographer: 郑斌、汤伟、张祖新
+  section_hint: 风险识别
+  keywords: [三峡, 三峡工程, 三峡大坝, 枢纽, 系统工程, 接口风险, 风险管理, 工程管理]
+  rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: ctg-three-gorges-lift
+  title: 三峡升船机
+  caption: 三峡升船机体现大型工程中技术创新、运营安全与进度协同的复杂约束。
+  source_org: 中国长江三峡集团有限公司
+  source_page_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/index.html
+  image_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/2019072208431067756.jpg
+  published_at: 2019-07-22
+  photographer: 郑斌、汤伟、张祖新
+  section_hint: 工程子系统
+  keywords: [三峡, 三峡工程, 升船机, 通航, 技术风险, 安全风险, 项目风险管理]
+  rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: ctg-three-gorges-locks
+  title: 三峡五级船闸
+  caption: 五级船闸是理解工程运行、通航调度和多方利益协调的重要视觉材料。
+  source_org: 中国长江三峡集团有限公司
+  source_page_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/index.html
+  image_url: https://media.ctg.com.cn/sxjt/xwzx55/zhxw23/2024081107400571895/2019072208431999022.jpg
+  published_at: 2019-07-22
+  photographer: 郑斌、汤伟、张祖新
+  section_hint: 多方协调
+  keywords: [三峡, 三峡工程, 船闸, 通航, 调度, 多方协调, 风险管理, 项目管理]
+  rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。

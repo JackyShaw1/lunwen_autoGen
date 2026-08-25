@@ -88,6 +88,27 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
     elif class_hours and not minutes:
         issues.append(_issue("warning", "timing_missing", "授课流程没有明确分钟数", "instructor_guide.teaching_flow"))
 
+    visual_assets = package.get("visual_assets") or []
+    if len(visual_assets) > 6:
+        issues.append(_issue("error", "too_many_visual_assets", "官方视觉素材最多选择 6 张", "visual_assets"))
+    asset_ids: set[str] = set()
+    for index, asset in enumerate(visual_assets):
+        path = f"visual_assets.{index}"
+        if not isinstance(asset, dict):
+            issues.append(_issue("error", "invalid_visual_asset", "视觉素材结构无效", path))
+            continue
+        asset_id = str(asset.get("id") or "").strip()
+        if not asset_id or asset_id in asset_ids:
+            issues.append(_issue("error", "duplicate_visual_asset", "视觉素材 ID 缺失或重复", path))
+        asset_ids.add(asset_id)
+        required = ("title", "caption", "source_org", "source_page_url", "rights_notice")
+        if not all(str(asset.get(key) or "").strip() for key in required):
+            issues.append(_issue("error", "incomplete_visual_provenance", "视觉素材缺少标题、说明、来源机构、原始页面或权利提示", path))
+        if not str(asset.get("source_page_url") or "").startswith("https://"):
+            issues.append(_issue("error", "unsafe_visual_source", "视觉素材原始页面必须使用 HTTPS 官方地址", f"{path}.source_page_url"))
+        if asset.get("official") is not True:
+            issues.append(_issue("error", "unverified_visual_source", "视觉素材尚未标记为审核过的官方来源", path))
+
     quality = package.get("quality") or {}
     scores = quality.get("rubric_scores") or {}
     score_keys = ("alignment", "authenticity", "discussion", "structure", "readability")

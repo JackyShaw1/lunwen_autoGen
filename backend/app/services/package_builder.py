@@ -7,6 +7,7 @@ from typing import Any
 
 from app.models import CaseTask
 from app.services.rubric_service import score_package
+from app.services.material_service import recommended_materials
 
 
 def count_case_body_chars(package: dict[str, Any]) -> int:
@@ -256,6 +257,10 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
             }
             for i, lo in enumerate(lo_items)
         ],
+        "visual_assets": recommended_materials(
+            f"{title} {subject} {course} {task.case_type}",
+            limit=3,
+        ),
         "quality": {},
     }
     if domain_notes:

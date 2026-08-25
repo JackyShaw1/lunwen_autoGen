@@ -14,6 +14,7 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
 from app.config import settings
+from app.services.material_service import get_cached_material_image, resolve_package_materials
 
 
 THEMES = {
@@ -118,6 +119,14 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
             "title": "案例背景" if index == 1 else f"案例背景 · {index}", "items": items,
         })
 
+    for asset in resolve_package_materials(package, limit=3):
+        slides.append({
+            "kind": "visual", "section": "案例情境", "title": asset["title"],
+            "asset_id": asset["id"], "caption": asset["caption"],
+            "source_org": asset["source_org"], "source_page_url": asset["source_page_url"],
+            "photographer": asset.get("photographer"),
+        })
+
     characters = body.get("characters") or []
     if characters:
         slides.append({"kind": "characters", "section": "案例情境", "title": "关键角色与立场", "items": characters[:6]})
@@ -185,7 +194,7 @@ def outline_preview(outline: dict[str, Any]) -> dict[str, Any]:
         elif items:
             summary = "；".join(_clean_text(item) for item in items[:2])
         else:
-            summary = _clean_text(slide.get("content") or slide.get("subtitle"))
+            summary = _clean_text(slide.get("content") or slide.get("subtitle") or slide.get("caption"))
         preview.append({
             "index": index, "kind": slide["kind"], "title": slide["title"],
             "summary": summary[:120], "teacher_only": bool(slide.get("teacher_only")),
@@ -286,6 +295,18 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
 
         if kind in {"bullets", "objectives", "agenda"}:
             _render_bullets(slide, spec.get("items") or [], palette)
+        elif kind == "visual":
+            try:
+                image_path = get_cached_material_image(spec["asset_id"])
+                slide.shapes.add_picture(str(image_path), Inches(1.02), Inches(1.48), width=Inches(7.45))
+            except Exception:
+                _shape(slide, 0.72, 1.48, 8.05, 4.95, palette["soft"], line="D9E2E7")
+                _textbox(slide, "官方图片暂时无法获取\n请通过来源页面查看", 1.2, 3.05, 7.0, 0.9, size=18, color=palette["muted"], align=PP_ALIGN.CENTER)
+            _shape(slide, 9.08, 1.48, 3.45, 4.95, palette["surface"], line="D9E2E7")
+            _textbox(slide, spec.get("caption", ""), 9.38, 1.86, 2.85, 1.6, size=16, color=palette["text"], bold=True)
+            _textbox(slide, f"来源机构\n{spec.get('source_org', '')}", 9.38, 3.72, 2.85, 0.72, size=11, color=palette["muted"])
+            _textbox(slide, f"摄影\n{spec.get('photographer') or '未标注'}", 9.38, 4.62, 2.85, 0.65, size=11, color=palette["muted"])
+            _textbox(slide, "教学引用 · 外部分发前确认授权", 9.38, 5.62, 2.85, 0.42, size=9, color=palette["accent"], bold=True)
         elif kind == "characters":
             items = spec.get("items") or []
             cols = 3

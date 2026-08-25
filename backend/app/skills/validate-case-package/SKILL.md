@@ -1,6 +1,6 @@
 ---
 name: validate-case-package
-description: Apply deterministic quality gates to a teaching case package, including schema completeness, body length, objective alignment, classroom timing, repetition, discussion depth, and reviewer-score consistency. Use before saving, finalizing, regenerating, or exporting a case package.
+description: Apply deterministic quality gates to a teaching case package, including schema completeness, body length, objective alignment, classroom timing, repetition, discussion depth, official-visual provenance, and reviewer-score consistency. Use before saving, finalizing, or exporting a case package.
 ---
 
 # Validate Case Package
@@ -23,3 +23,4 @@ Treat validation as a release gate, not a writing suggestion.
 - Require every learning objective in the alignment matrix.
 - Detect exact or near-exact repeated long paragraphs.
 - Require reviewer overall score to equal the five-dimension mean within rounding tolerance.
+- If visual assets are selected, require verified official provenance, HTTPS source pages, rights notices, unique IDs, and no more than six images.

@@ -10,6 +10,7 @@ from app.api.cases import router as cases_router
 from app.api.dashboard import router as dashboard_router
 from app.api.admin import router as admin_router
 from app.api.websocket import router as ws_router
+from app.api.materials import router as materials_router
 
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(cases_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(materials_router, prefix="/api")
 app.include_router(ws_router)
 
 

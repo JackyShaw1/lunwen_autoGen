@@ -24,6 +24,7 @@ from app.services.package_builder import normalize_case_package
 from app.services.pptx_export_service import build_ppt_outline, export_pptx, outline_preview
 from app.services.progress_hub import progress_hub
 from app.services.skill_loader import validate_package_with_skill
+from app.services.material_service import recommended_materials
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -44,6 +45,15 @@ def _task_context(task: CaseTask) -> dict:
         "workflow_template": task.workflow_template,
         "config": task.config or {},
     }
+
+
+def _hydrate_official_materials(package: dict, task: CaseTask) -> None:
+    """Give legacy packages contextual official visuals without overriding a teacher's explicit empty selection."""
+    if "visual_assets" not in package:
+        package["visual_assets"] = recommended_materials(
+            f"{task.title} {task.subject} {task.course_name} {task.case_type}",
+            limit=3,
+        )
 
 
 async def _run_generation_task(task_id: str) -> None:
@@ -148,7 +158,7 @@ async def start_generate(
     if task.status == "draft":
         consume_quota(db, user)
 
-    _spawn_generation(task_id, None)
+    _spawn_generation(task_id)
     return {"message": "生成已启动", "task_id": task_id}
 
 
@@ -255,6 +265,7 @@ def get_package(
     if not pkg:
         raise HTTPException(404, "案例包尚未生成")
     normalize_case_package(pkg.package)
+    _hydrate_official_materials(pkg.package, task)
     return {
         "version": pkg.version,
         "status": pkg.status,
@@ -321,6 +332,7 @@ def export_case(
         raise HTTPException(400, "请先生成案例")
 
     normalize_case_package(pkg.package)
+    _hydrate_official_materials(pkg.package, task)
     validation = validate_package_with_skill(pkg.package, _task_context(task))
     validation_errors = [
         issue["message"] for issue in validation["issues"] if issue.get("severity") == "error"
@@ -371,6 +383,7 @@ def preview_ppt_outline(
     if not pkg:
         raise HTTPException(400, "请先生成案例")
     normalize_case_package(pkg.package)
+    _hydrate_official_materials(pkg.package, task)
     return outline_preview(build_ppt_outline(pkg.package, body.model_dump()))
 
 
