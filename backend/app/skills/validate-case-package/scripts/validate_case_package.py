@@ -89,6 +89,13 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
         issues.append(_issue("warning", "timing_missing", "授课流程没有明确分钟数", "instructor_guide.teaching_flow"))
 
     visual_assets = package.get("visual_assets") or []
+    material_research = package.get("material_research") or {}
+    if visual_assets and not str(material_research.get("context_signature") or "").strip():
+        issues.append(_issue(
+            "error", "missing_material_context",
+            "官方视觉素材缺少课程上下文研究标记，无法确认是否属于当前课程",
+            "material_research.context_signature",
+        ))
     if len(visual_assets) > 6:
         issues.append(_issue("error", "too_many_visual_assets", "官方视觉素材最多选择 6 张", "visual_assets"))
     asset_ids: set[str] = set()

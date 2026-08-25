@@ -7,7 +7,7 @@ from typing import Any
 
 from app.models import CaseTask
 from app.services.rubric_service import score_package
-from app.services.material_service import recommended_materials
+from app.services.material_service import material_context_signature, recommended_materials
 
 
 def count_case_body_chars(package: dict[str, Any]) -> int:
@@ -169,6 +169,8 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
         {"name": "林晓雯", "role": "中层协调者", "stance": "呼吁兼顾执行层反馈"},
         {"name": "赵磊", "role": "一线代表", "stance": "担忧节奏与资源不足"},
     ]
+    material_query = f"{title} {subject} {course} {task.case_type}"
+    visual_assets = recommended_materials(material_query, limit=3)
 
     package: dict[str, Any] = {
         "meta": {
@@ -257,10 +259,13 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
             }
             for i, lo in enumerate(lo_items)
         ],
-        "visual_assets": recommended_materials(
-            f"{title} {subject} {course} {task.case_type}",
-            limit=3,
-        ),
+        "visual_assets": visual_assets,
+        "material_research": {
+            "context_signature": material_context_signature(title, subject, course, task.case_type),
+            "query": material_query,
+            "strategy": "course_scoped_official_catalog",
+            "matched_count": len(visual_assets),
+        },
         "quality": {},
     }
     if domain_notes:

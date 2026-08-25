@@ -24,7 +24,7 @@ from app.services.package_builder import normalize_case_package
 from app.services.pptx_export_service import build_ppt_outline, export_pptx, outline_preview
 from app.services.progress_hub import progress_hub
 from app.services.skill_loader import validate_package_with_skill
-from app.services.material_service import recommended_materials
+from app.services.material_service import material_context_signature, recommended_materials
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -48,12 +48,21 @@ def _task_context(task: CaseTask) -> dict:
 
 
 def _hydrate_official_materials(package: dict, task: CaseTask) -> None:
-    """Give legacy packages contextual official visuals without overriding a teacher's explicit empty selection."""
-    if "visual_assets" not in package:
+    """Re-match legacy visuals when the package was created before course-scoped research."""
+    signature = material_context_signature(task.title, task.subject, task.course_name, task.case_type)
+    research = package.get("material_research") or {}
+    if research.get("context_signature") != signature:
+        query = f"{task.title} {task.subject} {task.course_name} {task.case_type}"
         package["visual_assets"] = recommended_materials(
-            f"{task.title} {task.subject} {task.course_name} {task.case_type}",
+            query,
             limit=3,
         )
+        package["material_research"] = {
+            "context_signature": signature,
+            "query": query,
+            "strategy": "course_scoped_official_catalog",
+            "matched_count": len(package["visual_assets"]),
+        }
 
 
 async def _run_generation_task(task_id: str) -> None:

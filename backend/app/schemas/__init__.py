@@ -212,6 +212,7 @@ class VisualAsset(BaseModel):
     section_hint: str | None = None
     rights_notice: str
     official: bool = True
+    match_reasons: list[str] = []
 
 
 class CasePackageSchema(BaseModel):
@@ -222,4 +223,5 @@ class CasePackageSchema(BaseModel):
     instructor_guide: InstructorGuide
     alignment_matrix: list[AlignmentRow]
     visual_assets: list[VisualAsset] = []
+    material_research: dict[str, Any] | None = None
     quality: CaseQuality | None = None

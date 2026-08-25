@@ -7,6 +7,7 @@
   published_at: 2019-07-22
   photographer: 郑斌、汤伟、张祖新
   section_hint: 案例背景
+  course_tags: [三峡工程, 三峡, 三峡大坝, 水利工程]
   keywords: [三峡, 三峡工程, 三峡大坝, 水利工程, 风险管理, 项目管理, 工程管理, 防洪]
   rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
 
@@ -19,6 +20,7 @@
   published_at: 2019-07-22
   photographer: 郑斌、汤伟、张祖新
   section_hint: 风险识别
+  course_tags: [三峡工程, 三峡, 三峡大坝, 水利工程]
   keywords: [三峡, 三峡工程, 三峡大坝, 枢纽, 系统工程, 接口风险, 风险管理, 工程管理]
   rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
 
@@ -31,6 +33,7 @@
   published_at: 2019-07-22
   photographer: 郑斌、汤伟、张祖新
   section_hint: 工程子系统
+  course_tags: [三峡工程, 三峡, 三峡大坝, 水利工程]
   keywords: [三峡, 三峡工程, 升船机, 通航, 技术风险, 安全风险, 项目风险管理]
   rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
 
@@ -43,5 +46,127 @@
   published_at: 2019-07-22
   photographer: 郑斌、汤伟、张祖新
   section_hint: 多方协调
+  course_tags: [三峡工程, 三峡, 三峡大坝, 水利工程]
   keywords: [三峡, 三峡工程, 船闸, 通航, 调度, 多方协调, 风险管理, 项目管理]
   rights_notice: 来源为三峡集团官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: chizhou-smart-manufacturing-workshop
+  title: 铜冠铜箔数字化生产车间
+  caption: 真实生产线中的自动化设备、在线监测与人员作业共同构成制造企业数字化转型的现场，可用于讨论技术升级与组织变革之间的关系。
+  source_org: 池州市人民政府办公室
+  source_page_url: https://www.chizhou.gov.cn/OpennessContent/show/1711064.html
+  image_url: https://www.chizhou.gov.cn/file_cz/1/202601/202601223a6aa5fd51cb47aaaf50db948faf070e.png
+  published_at: 2026-01-22
+  photographer: 莫助国
+  section_hint: 数字化转型现场
+  course_tags: [制造企业数字化转型, 制造业数字化转型, 智能制造, 数字化工厂, 数字化车间, 4A架构]
+  keywords: [制造企业, 数字化转型, 智能工厂, 自动化, 在线监测, 组织变革, 生产流程, 4A架构]
+  rights_notice: 来源为池州市人民政府官方公开页面，仅用于课堂教学引用；版权归原机构及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: shanghai-one-thing-process-map
+  title: 住宅建设“一件事”跨部门流程图
+  caption: 流程图将规划许可、开工建设和竣工验收三个阶段串联起来，适合分析端到端流程、部门接口、并行审批与闭环管理。
+  source_org: 上海市人民政府
+  source_page_url: https://www.shanghai.gov.cn/nw17239/20251124/b7278e9041004b9dbf0a112a21d04505.html
+  image_url: https://www.shanghai.gov.cn/cmsres/a3/a3a4a2276f264f8ba06fd97c8fc51275/4ffce04d92a4d6cb21c1494cdfcd6dc1.png
+  published_at: 2025-11-19
+  photographer: 黄浦区房管局
+  section_hint: 流程架构
+  course_tags: [流程管理, 业务流程, 流程再造, 企业流程, 端到端流程]
+  exclude_keywords: [跨境电商, 跨境电子商务]
+  keywords: [流程管理, 流程再造, 跨部门协同, 端到端, 流程图, 闭环管理, 接口管理]
+  rights_notice: 来源为上海市人民政府官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: shanghai-one-thing-service-interface
+  title: “一件事”线上事项指南界面
+  caption: 在线事项指南把材料、办理地点、咨询方式和前去办理入口集中呈现，可用于讨论流程标准化、用户视角与信息透明度。
+  source_org: 上海市人民政府
+  source_page_url: https://www.shanghai.gov.cn/nw17239/20251124/b7278e9041004b9dbf0a112a21d04505.html
+  image_url: https://www.shanghai.gov.cn/cmsres/99/999b083b3a544fd1a181c7ec697b5a45/35c08ba9209e92fe1b78dd89d1a10b29.png
+  published_at: 2025-11-19
+  photographer: 黄浦区房管局
+  section_hint: 流程数字化
+  course_tags: [流程管理, 业务流程, 流程再造, 企业流程, 流程数字化]
+  exclude_keywords: [跨境电商, 跨境电子商务]
+  keywords: [流程管理, 标准化, 用户体验, 事项指南, 线上流程, 信息透明, 流程数字化]
+  rights_notice: 来源为上海市人民政府官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: belt-road-cross-border-loading
+  title: 阿拉山口跨境电商货物装载现场
+  caption: 工人与司机在清关中心加固跨境出口货物，适合识别入库、换装、施封、报关和出库之间的现场衔接风险。
+  source_org: 中国一带一路网
+  source_page_url: https://www.yidaiyilu.gov.cn/p/0FO58O44.html
+  image_url: https://www.yidaiyilu.gov.cn/a/icmp/2023/07/27/20230727168298745/fafab9f2c61a46f7a33245591498ebfd.jpg
+  published_at: 2023-07-27
+  photographer: 喇小飞
+  section_hint: 跨境履约现场
+  course_tags: [跨境电商, 跨境电子商务, 跨境物流, 清关流程]
+  keywords: [跨境电商, 清关中心, 货物装载, 施封, 报关, 出库, 跨境物流, 流程衔接]
+  rights_notice: 来源为中国一带一路网官方公开页面，原文图片署名中国新闻网作者；仅用于课堂教学引用，公开传播或商业再利用前请确认授权。
+
+- id: belt-road-cross-border-warehouse
+  title: 跨境电商仓库包裹清点
+  caption: 仓库工人对跨境包裹进行清点，能够直观呈现订单、仓储、报关和运输信息需要一致的流程控制场景。
+  source_org: 中国一带一路网
+  source_page_url: https://www.yidaiyilu.gov.cn/p/0FO58O44.html
+  image_url: https://www.yidaiyilu.gov.cn/a/icmp/2023/07/27/20230727168298745/d205ef6c0c5a44b0be4b8422f4d3c5de.jpg
+  published_at: 2023-07-27
+  photographer: 喇小飞
+  section_hint: 仓储与信息核对
+  course_tags: [跨境电商, 跨境电子商务, 跨境物流, 清关流程]
+  keywords: [跨境电商, 仓储, 包裹清点, 订单, 报关, 信息一致性, 流程控制]
+  rights_notice: 来源为中国一带一路网官方公开页面，原文图片署名中国新闻网作者；仅用于课堂教学引用，公开传播或商业再利用前请确认授权。
+
+- id: locpg-cross-bay-bridge-view
+  title: 香港将军澳跨湾大桥现场
+  caption: 大型跨海桥梁项目的主体结构与周边环境，适合用于大型项目范围、复杂接口、施工风险与交付价值的课堂导入。
+  source_org: 中央人民政府驻香港特别行政区联络办公室
+  source_page_url: https://www.locpg.gov.cn/jsdt/2022-12/12/c_1211708747.htm
+  image_url: https://www.news.cn/gangao/2022-12/11/1129200132_16708059120181n.jpg
+  published_at: 2022-12-12
+  photographer: 陈铎
+  section_hint: 大型项目背景
+  course_tags: [大型项目, 大型工程, 工程项目, 项目风险管理, 工程风险]
+  exclude_keywords: [三峡, 三峡工程]
+  keywords: [大型项目, 跨海桥梁, 工程管理, 风险管理, 项目交付, 复杂接口]
+  rights_notice: 来源为中央政府驻港联络办转载的新华社公开图片，仅用于课堂教学引用；版权归新华社及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: locpg-cross-bay-bridge-aerial
+  title: 将军澳跨湾大桥及连接路航拍
+  caption: 航拍图展示桥梁、连接路、城市与水域构成的系统边界，可用于讨论大型项目的多系统集成与利益相关方协调。
+  source_org: 中央人民政府驻香港特别行政区联络办公室
+  source_page_url: https://www.locpg.gov.cn/jsdt/2022-12/12/c_1211708747.htm
+  image_url: https://www.news.cn/gangao/2022-12/11/1129200132_16708024328361n.jpg
+  published_at: 2022-12-12
+  photographer: 严锦文
+  section_hint: 系统边界
+  course_tags: [大型项目, 大型工程, 工程项目, 项目风险管理, 工程风险]
+  exclude_keywords: [三峡, 三峡工程]
+  keywords: [大型项目, 航拍, 系统集成, 连接工程, 利益相关方, 工程风险]
+  rights_notice: 来源为中央政府驻港联络办转载的新华社公开图片，仅用于课堂教学引用；版权归新华社及摄影者，公开传播或商业再利用前请确认授权。
+
+- id: cas-systems-engineering-seminar
+  title: 系统工程与集成管理专题研讨会
+  caption: 专家围绕钱学森系统工程思想和大型工程集成管理开展研讨，适合呈现“专家体系—数据—模型—决策”综合集成过程。
+  source_org: 中国科学院主管科学出版社
+  source_page_url: https://sciencep.cas.cn/zxzx2017/wsyw2017/201810/t20181019_263683.html
+  image_url: https://sciencep.cas.cn/zxzx2017/wsyw2017/201810/W020241208469989996723.jpg
+  published_at: 2018-10-19
+  photographer: 未标注
+  section_hint: 综合集成研讨
+  course_tags: [系统工程, 综合集成, 综合集成方法论, 开放复杂巨系统, 钱学森]
+  keywords: [系统工程, 综合集成, 专家研讨, 集成管理, 复杂系统, 科学决策]
+  rights_notice: 来源为中国科学院主管科学出版社官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cas-systems-engineering-experts
+  title: 系统工程专家团队合影
+  caption: 系统工程理论与实践专家团队体现多学科知识汇聚，可用于讨论综合集成方法中专家判断、知识协同与组织机制。
+  source_org: 中国科学院主管科学出版社
+  source_page_url: https://sciencep.cas.cn/zxzx2017/wsyw2017/201810/t20181019_263683.html
+  image_url: https://sciencep.cas.cn/zxzx2017/wsyw2017/201810/W020241208469990152249.jpg
+  published_at: 2018-10-19
+  photographer: 未标注
+  section_hint: 专家协同
+  course_tags: [系统工程, 综合集成, 综合集成方法论, 开放复杂巨系统, 钱学森]
+  keywords: [系统工程, 综合集成, 专家团队, 知识协同, 多学科, 组织机制]
+  rights_notice: 来源为中国科学院主管科学出版社官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。

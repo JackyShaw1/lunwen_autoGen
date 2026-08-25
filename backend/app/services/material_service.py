@@ -16,8 +16,16 @@ from app.config import settings
 
 
 CATALOG_PATH = Path(__file__).resolve().parent.parent / "materials" / "official_visuals.yaml"
-ALLOWED_IMAGE_HOSTS = {"media.ctg.com.cn", "www.ctg.com.cn", "ctg.com.cn", "dam.nea.gov.cn"}
+ALLOWED_IMAGE_HOSTS = {
+    "media.ctg.com.cn", "www.ctg.com.cn", "ctg.com.cn", "dam.nea.gov.cn",
+    "www.chizhou.gov.cn", "www.shanghai.gov.cn", "www.yidaiyilu.gov.cn",
+    "www.news.cn", "sciencep.cas.cn",
+}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
+GENERIC_KEYWORDS = {
+    "管理", "管理学", "项目", "项目管理", "风险", "风险管理", "工程管理",
+    "分析", "决策", "企业", "课程", "案例", "教学", "系统", "流程",
+}
 
 
 @lru_cache(maxsize=1)
@@ -27,6 +35,8 @@ def load_official_materials() -> list[dict[str, Any]]:
     for item in data:
         asset = dict(item)
         asset["keywords"] = [str(value) for value in asset.get("keywords") or []]
+        asset["course_tags"] = [str(value) for value in asset.get("course_tags") or []]
+        asset["exclude_keywords"] = [str(value) for value in asset.get("exclude_keywords") or []]
         if asset.get("published_at") is not None:
             asset["published_at"] = str(asset["published_at"])
         asset["official"] = True
@@ -40,33 +50,66 @@ def get_official_material(asset_id: str) -> dict[str, Any] | None:
 
 
 def search_official_materials(query: str, limit: int = 12) -> list[dict[str, Any]]:
+    normalized_query = re.sub(r"\s+", "", query or "").lower()
     tokens = [token.lower() for token in re.findall(r"[\w\u4e00-\u9fff]+", query or "") if token]
     ranked: list[tuple[int, dict[str, Any]]] = []
     for asset in load_official_materials():
+        if any(re.sub(r"\s+", "", value).lower() in normalized_query for value in asset.get("exclude_keywords") or []):
+            continue
         title = str(asset.get("title") or "").lower()
         haystack = " ".join([
             title,
             str(asset.get("caption") or "").lower(),
             " ".join(asset.get("keywords") or []).lower(),
         ])
-        score = 0
+        course_tags = [value for value in asset.get("course_tags") or [] if value]
+        matched_course_tags = [
+            value for value in course_tags
+            if re.sub(r"\s+", "", value).lower() in normalized_query
+        ]
+        # A generated course-context query contains title, subject, course and case type
+        # as separate segments. It must match the curated course scope. A short manual
+        # query may still locate a specific asset by title/keyword (for example “船闸”).
+        is_course_context = len(tokens) >= 3
+        if is_course_context and not matched_course_tags:
+            continue
+        anchors = [
+            value for value in [*course_tags, *(asset.get("keywords") or [])]
+            if value and value.lower() not in GENERIC_KEYWORDS
+        ]
+        matched_anchors = [
+            value for value in anchors
+            if re.sub(r"\s+", "", value).lower() in normalized_query
+        ]
+        # Course relevance is a hard gate. Generic terms such as “管理” must never make an
+        # unrelated Three Gorges image appear in another course.
+        if not matched_anchors:
+            continue
+
+        score = sum(18 + min(len(value), 10) * 2 for value in set(matched_anchors))
         for token in tokens:
             if token in title:
                 score += 8
             elif token in haystack:
                 score += 3
-            # Chinese case titles are often long; match catalog keywords as substrings of the query.
-            for keyword in asset.get("keywords") or []:
-                if keyword.lower() in token or keyword.lower() in (query or "").lower():
-                    score += 2
+        for course_tag in asset.get("course_tags") or []:
+            if re.sub(r"\s+", "", course_tag).lower() in normalized_query:
+                score += 12
         if score:
-            ranked.append((score, asset))
+            result = dict(asset)
+            result["match_reasons"] = list(dict.fromkeys(matched_anchors))[:3]
+            ranked.append((score, result))
     ranked.sort(key=lambda pair: (-pair[0], pair[1]["title"]))
     return [dict(asset) for _, asset in ranked[: max(1, min(limit, 30))]]
 
 
 def recommended_materials(context: str, limit: int = 3) -> list[dict[str, Any]]:
     return search_official_materials(context, limit=limit)
+
+
+def material_context_signature(title: str, subject: str, course: str, case_type: str) -> str:
+    normalized = "|".join(re.sub(r"\s+", "", str(value or "")).lower() for value in (title, subject, course, case_type))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
 
 def _cache_path(asset: dict[str, Any]) -> Path:

@@ -43,6 +43,7 @@ export interface VisualAsset {
   rights_notice: string
   official: boolean
   keywords?: string[]
+  match_reasons?: string[]
 }
 
 export interface CasePackage {
@@ -77,6 +78,12 @@ export interface CasePackage {
     assessment: string
   }>
   visual_assets?: VisualAsset[]
+  material_research?: {
+    context_signature: string
+    query: string
+    strategy: string
+    matched_count?: number
+  }
   quality?: {
     overall_score?: number
     reviewer_summary?: string

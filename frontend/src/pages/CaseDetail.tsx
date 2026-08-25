@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/Input'
 import { fetchCasePackage, saveCasePackage, searchOfficialMaterials } from '@/features/cases/api'
 import type { CasePackage, VisualAsset } from '@/types/case'
 import { cn } from '@/lib/utils'
-import { BookOpenText, Clock3, ExternalLink, Image as ImageIcon, Presentation, Quote, Search, ShieldCheck, Users, X } from 'lucide-react'
+import { BookOpenText, Clock3, ExternalLink, Image as ImageIcon, Presentation, Quote, RefreshCw, Search, ShieldCheck, Users, X } from 'lucide-react'
 
 const TABS = [
   { id: 'body', label: '案例正文' },
@@ -73,8 +73,9 @@ export default function CaseDetail() {
     },
   })
 
-  const effectiveMaterialQuery = materialQuery.trim() || [pkg?.meta?.title, pkg?.meta?.subject, pkg?.meta?.course].filter(Boolean).join(' ')
-  const { data: materialResults = [], isFetching: materialsLoading } = useQuery({
+  const courseMaterialQuery = [pkg?.meta?.title, pkg?.meta?.subject, pkg?.meta?.course, pkg?.meta?.case_type].filter(Boolean).join(' ')
+  const effectiveMaterialQuery = materialQuery.trim() || courseMaterialQuery
+  const { data: materialResults = [], isFetching: materialsLoading, refetch: refetchMaterials } = useQuery({
     queryKey: ['official-materials', effectiveMaterialQuery],
     queryFn: () => searchOfficialMaterials(effectiveMaterialQuery),
     enabled: tab === 'materials' && effectiveMaterialQuery.length >= 2,
@@ -346,10 +347,22 @@ export default function CaseDetail() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="max-w-3xl">
                   <div className="flex items-center gap-2 text-sm font-bold text-primary"><ShieldCheck size={17} />可追溯的官网素材</div>
-                  <h2 className="mt-2 text-xl font-bold text-slate-950">用真实工程影像建立课堂现场感</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">系统只推荐经过目录审核的政府或机构官网图片，并保留来源、摄影者及使用提示。官网公开不等于可无限转载，公开发布或商业传播前仍需确认授权。</p>
+                  <h2 className="mt-2 text-xl font-bold text-slate-950">为“{view.meta.course}”单独匹配视觉证据</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">系统联合案例主题、课程名称、学科和案例类型匹配政府、高校、科研院所或权威机构官网素材。课程主题不相关时宁可留空，不会拿其他课程的图片凑数。</p>
                 </div>
-                {!editing && <Button variant="outline" onClick={startEdit}>编辑素材</Button>}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setMaterialQuery('')
+                      if (effectiveMaterialQuery === courseMaterialQuery) void refetchMaterials()
+                    }}
+                    disabled={materialsLoading}
+                  >
+                    <RefreshCw size={15} />按本课程重新匹配
+                  </Button>
+                  {!editing && <Button variant="outline" onClick={startEdit}>编辑素材</Button>}
+                </div>
               </div>
               <div className="relative mt-5">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
@@ -390,7 +403,7 @@ export default function CaseDetail() {
             <section>
               <div className="mb-3 flex items-center gap-2"><ImageIcon size={17} className="text-primary" /><h3 className="font-bold text-slate-900">推荐的官方素材</h3>{materialsLoading && <span className="text-xs text-slate-400">检索中…</span>}</div>
               {!materialsLoading && materialResults.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-10 text-center text-sm text-slate-500">当前官方素材目录暂无匹配结果。系统不会用来源不明的网图代替。</div>
+                <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-10 text-center text-sm text-slate-500">当前课程暂无通过来源审核且主题匹配的素材。系统不会用其他课程图片或来源不明的网图代替。</div>
               ) : (
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {materialResults.map((asset) => {
@@ -400,6 +413,7 @@ export default function CaseDetail() {
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3"><h4 className="font-bold text-slate-900">{asset.title}</h4><span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[10px] text-slate-500">{asset.section_hint}</span></div>
                         <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{asset.caption}</p>
+                        {!!asset.match_reasons?.length && <div className="mt-3 flex flex-wrap gap-1.5">{asset.match_reasons.map((reason) => <span key={reason} className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">匹配：{reason}</span>)}</div>}
                         <p className="mt-3 text-xs text-slate-500">来源：{asset.source_org}</p>
                         <div className="mt-4 flex gap-2">
                           <Button size="sm" disabled={!editing || selected || (view.visual_assets?.length || 0) >= 6} onClick={() => addMaterial(asset)}>{selected ? '已选入' : editing ? '加入案例' : '先点击编辑素材'}</Button>
