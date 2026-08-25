@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Download, Eye, FileText, GraduationCap, Layers3, Palette, Presentation, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Check, Download, Eye, FileText, GraduationCap, Layers3, MessageSquareText, Palette, Presentation, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
@@ -26,16 +26,22 @@ const THEMES: Array<{ id: PptOptions['theme']; label: string; desc: string; colo
 ]
 
 const DENSITIES: Array<{ id: PptOptions['density']; label: string; desc: string }> = [
-  { id: 'concise', label: '精简', desc: '约 8–12 页，突出关键冲突' },
-  { id: 'standard', label: '标准', desc: '约 12–16 页，兼顾叙事与讨论' },
-  { id: 'detailed', label: '详细', desc: '约 16–22 页，保留更多案例证据' },
+  { id: 'concise', label: '精简', desc: '约 15–20 页，突出关键冲突' },
+  { id: 'standard', label: '标准', desc: '约 20–28 页，兼顾叙事与讨论' },
+  { id: 'detailed', label: '详细', desc: '约 26–36 页，保留更多案例证据' },
+]
+
+const MODES: Array<{ id: PptOptions['mode']; label: string; desc: string }> = [
+  { id: 'lecture', label: '结构化讲授', desc: '完整呈现情境、分析与教学闭环' },
+  { id: 'workshop', label: '课堂研讨', desc: '强化任务、计时、决策与小组汇报' },
+  { id: 'visual', label: '视觉叙事', desc: '增加大图与留白，适合投屏讲故事' },
 ]
 
 export default function Export() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [format, setFormat] = useState<ExportFormat>('docx')
-  const [pptOptions, setPptOptions] = useState<PptOptions>({ theme: 'academic', density: 'standard', audience: 'teacher' })
+  const [pptOptions, setPptOptions] = useState<PptOptions>({ theme: 'academic', density: 'standard', audience: 'teacher', mode: 'lecture', include_speaker_notes: true })
   const [outline, setOutline] = useState<PptOutlinePreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -50,7 +56,7 @@ export default function Export() {
       .catch(() => { if (active) setOutline(null) })
       .finally(() => { if (active) setPreviewLoading(false) })
     return () => { active = false }
-  }, [id, format, pptOptions.theme, pptOptions.density, pptOptions.audience])
+  }, [id, format, pptOptions.theme, pptOptions.density, pptOptions.audience, pptOptions.mode, pptOptions.include_speaker_notes])
 
   const updatePptOption = <K extends keyof PptOptions>(key: K, value: PptOptions[K]) => {
     setPptOptions((current) => ({ ...current, [key]: value }))
@@ -90,7 +96,7 @@ export default function Export() {
           <h3 className="mt-5 text-lg font-bold">{format === 'pptx' ? '课堂课件包含' : '授课文档包含'}</h3>
           <ul className="mt-5 space-y-3 text-sm text-slate-300">
             {(format === 'pptx'
-              ? ['课程目标与课堂路径', '案例情境与关键角色', '按阶段拆分的案例进程', '决策点与分层讨论题', pptOptions.audience === 'teacher' ? '授课流程与教学提示' : '适合直接投放的学生视图']
+              ? ['大图封面、章节转场与课堂路径', '案例仪表盘、目标阶梯与角色立场', '按阶段拆分的视觉叙事', '决策框架、研讨任务与目标评价', pptOptions.audience === 'teacher' ? '逐页讲师备注与授课时间线' : '适合直接投放的学生视图']
               : ['案例正文与决策点', '分层讨论题', '教师参考手册', '教学目标对齐表', '虚构情境声明']
             ).map((item) => <li key={item} className="flex items-start gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-400" />{item}</li>)}
           </ul>
@@ -131,12 +137,25 @@ export default function Export() {
               </div>
 
               <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><MessageSquareText size={16} />课堂模式</div>
+                <div className="grid gap-2 md:grid-cols-3">
+                  {MODES.map((mode) => <button key={mode.id} type="button" onClick={() => updatePptOption('mode', mode.id)} className={cn('rounded-xl border p-3 text-left transition', pptOptions.mode === mode.id ? 'border-primary bg-indigo-50' : 'border-slate-200 hover:border-slate-300')}><span className="block text-sm font-semibold">{mode.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{mode.desc}</span></button>)}
+                </div>
+              </div>
+
+              <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><GraduationCap size={16} />使用对象</div>
                 <div className="grid gap-2 md:grid-cols-2">
                   <button type="button" onClick={() => updatePptOption('audience', 'teacher')} className={cn('rounded-xl border p-3 text-left transition', pptOptions.audience === 'teacher' ? 'border-primary bg-indigo-50' : 'border-slate-200')}><span className="block text-sm font-semibold">教师授课版</span><span className="mt-1 block text-xs text-slate-500">包含教学意图、授课流程、误区和目标对齐</span></button>
                   <button type="button" onClick={() => updatePptOption('audience', 'student')} className={cn('rounded-xl border p-3 text-left transition', pptOptions.audience === 'student' ? 'border-primary bg-indigo-50' : 'border-slate-200')}><span className="block text-sm font-semibold">学生展示版</span><span className="mt-1 block text-xs text-slate-500">隐藏教师提示，适合课堂直接投屏或分发</span></button>
                 </div>
               </div>
+
+
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <span><span className="block text-sm font-semibold text-slate-800">生成讲师备注</span><span className="mt-1 block text-xs text-slate-500">在 WPS/PowerPoint 备注区加入讲解提示、提问方式和建议时长</span></span>
+                <input type="checkbox" checked={pptOptions.include_speaker_notes} onChange={(event) => updatePptOption('include_speaker_notes', event.target.checked)} className="h-4 w-4 accent-indigo-600" />
+              </label>
             </section>
           )}
 

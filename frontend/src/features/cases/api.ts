@@ -139,6 +139,8 @@ export interface PptOptions {
   theme: 'academic' | 'modern' | 'minimal'
   density: 'concise' | 'standard' | 'detailed'
   audience: 'student' | 'teacher'
+  mode: 'lecture' | 'workshop' | 'visual'
+  include_speaker_notes: boolean
 }
 
 export interface PptOutlinePreview {
@@ -147,6 +149,8 @@ export interface PptOutlinePreview {
   theme: PptOptions['theme']
   density: PptOptions['density']
   audience: PptOptions['audience']
+  mode: PptOptions['mode']
+  include_speaker_notes: boolean
   slides: Array<{ index: number; kind: string; title: string; summary: string; teacher_only: boolean }>
 }
 

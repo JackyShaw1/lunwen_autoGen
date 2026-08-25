@@ -97,6 +97,8 @@ class PptOptions(BaseModel):
     theme: Literal["academic", "modern", "minimal"] = "academic"
     density: Literal["concise", "standard", "detailed"] = "standard"
     audience: Literal["student", "teacher"] = "teacher"
+    mode: Literal["lecture", "workshop", "visual"] = "lecture"
+    include_speaker_notes: bool = True
 
 
 class PptOutlineRequest(PptOptions):
