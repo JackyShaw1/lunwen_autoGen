@@ -38,8 +38,9 @@ def score_package(package: dict[str, Any]) -> dict[str, Any]:
         blueprint = package.get("case_blueprint") or {}
         required = blueprint.get("required_elements") or []
         artifacts = package.get("discipline_artifacts") or {}
-        planned = sum(bool(str(item.get("planned_use") or "").strip()) for item in required if isinstance(item, dict))
-        completeness = planned / max(len(required), 1)
+        expected = {str(item.get("key")) for item in required if isinstance(item, dict)}
+        covered = {str(item.get("key")) for item in package.get("discipline_coverage") or [] if isinstance(item, dict) and str(item.get("body_evidence") or "").strip()}
+        completeness = len(expected & covered) / max(len(expected), 1)
         discipline_authenticity = round(5.0 if completeness == 1 and artifacts else 2.5 + completeness * 2, 1)
         authenticity = min(authenticity, discipline_authenticity)
 

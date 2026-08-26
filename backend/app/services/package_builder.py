@@ -385,6 +385,17 @@ def _apply_discipline_contract(package: dict[str, Any], task: CaseTask, blueprin
     else:
         return
 
+    base_contract_keys = {
+        "stochastic_programming": {"decision_stages", "random_variables", "scenarios", "decision_variables", "objective_function", "constraints", "solution_comparison"},
+        "contract_law": {"jurisdiction", "parties", "clauses", "chronology", "legal_rules", "claims_defenses", "remedies"},
+    }.get(contract_id, set())
+    extra_elements = [item for item in blueprint.get("required_elements") or [] if item.get("key") not in base_contract_keys]
+    for item in extra_elements:
+        body["background"] += f" 教师确认本案例还必须使用“{item.get('label')}”：{item.get('planned_use')}。"
+        segments.append(
+            f"教师在蓝图中追加了“{item.get('label')}”要求：{item.get('planned_use')}。"
+            "该要求必须进入学生的证据分析和最终产出，不能只在教学目标中出现。"
+        )
     narrative_parts = list(segments)
     body["narrative"] = "\n\n".join(narrative_parts)
     minimum = int(task.target_words * 0.98)
@@ -407,6 +418,25 @@ def _apply_discipline_contract(package: dict[str, Any], task: CaseTask, blueprin
     package["meta"]["course_contract_id"] = contract_id
     package["case_blueprint"] = blueprint
     package["discipline_artifacts"] = artifacts
+    evidence_markers = {
+        "stochastic_programming": {
+            "decision_stages": "决策过程拆成两个阶段", "random_variables": "随机变量、情景概率、决策变量和约束",
+            "scenarios": "三个离散情景", "decision_variables": "一阶段变量x", "objective_function": "目标函数不是追求某个情景",
+            "constraints": "平衡约束为x+y_s-z_s=d_s", "solution_comparison": "三套待选模型",
+        },
+        "contract_law": {
+            "jurisdiction": "中国大陆法教学场景", "parties": "甲辰设备公司与海岳食品公司",
+            "clauses": "合同第4条约定", "chronology": "5月8日设备运抵", "legal_rules": "合同法律规则为依据",
+            "claims_defenses": "双方分别提出请求", "remedies": "继续履行、修理重作、解除合同或损害赔偿",
+        },
+    }.get(contract_id, {})
+    package["discipline_coverage"] = [
+        {
+            "key": item.get("key"), "label": item.get("label"),
+            "body_evidence": evidence_markers.get(item.get("key")) or str(item.get("planned_use") or "")[:60],
+        }
+        for item in blueprint.get("required_elements") or []
+    ]
     package["domain_context"] = {
         "notes": "；".join(f"{item.get('label')}：{item.get('planned_use')}" for item in blueprint.get("required_elements") or [])
     }
@@ -549,8 +579,18 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
         "title": task.title, "subject": task.subject, "course_name": task.course_name,
         "learning_objectives": task.learning_objectives or [],
     })
-    if exact_contract and approved_blueprint.get("contract_id") == selected_id:
-        _apply_discipline_contract(package, task, approved_blueprint)
+    if approved_blueprint:
+        package.setdefault("meta", {})["content_mode"] = "discipline_contract"
+        package["meta"]["course_contract_id"] = approved_blueprint.get("contract_id")
+        package["case_blueprint"] = approved_blueprint
+        package["domain_context"] = {
+            "notes": "；".join(
+                f"{item.get('label')}：{item.get('planned_use')}"
+                for item in approved_blueprint.get("required_elements") or []
+            )
+        }
+        if exact_contract and approved_blueprint.get("contract_id") == selected_id:
+            _apply_discipline_contract(package, task, approved_blueprint)
     if domain_notes:
         package["domain_context"] = {"notes": domain_notes.strip()}
     update_body_length_meta(package, task.target_words)
@@ -589,6 +629,10 @@ def merge_agent_output(package: dict[str, Any], agent: str, data: dict[str, Any]
                 body[k] = data[k]
         if data.get("body"):
             body.update({k: v for k, v in data["body"].items() if v})
+        if data.get("discipline_coverage"):
+            package["discipline_coverage"] = data["discipline_coverage"]
+        if data.get("discipline_artifacts"):
+            package["discipline_artifacts"] = data["discipline_artifacts"]
     elif agent == "PedagogyDesigner":
         if data.get("discussion_questions"):
             package["discussion_questions"] = data["discussion_questions"]

@@ -76,6 +76,81 @@ SUBJECT_FALLBACKS: dict[str, dict[str, Any]] = {
         "decision_task": "围绕争点完成规则—事实—结论的双向论证。",
         "forbidden_patterns": ["泛化组织变革故事"],
     },
+    "经济学": {
+        "name": "经济与金融分析",
+        "family": "经济学 / 金融学",
+        "required_elements": [
+            ("economic_agents", "经济主体与激励", "明确主体、目标、信息与行为假设"),
+            ("variables_data", "变量、口径与数据", "给出变量定义、单位、样本或参数来源"),
+            ("mechanism_model", "经济机制或模型", "呈现因果机制、均衡关系或计量识别思路"),
+            ("counterfactual", "基准与反事实", "设置可以比较的政策、市场或投资情景"),
+            ("welfare_risk", "效果、分配与风险", "比较效率、分配影响、稳健性和外部性"),
+        ],
+        "evidence_plan": ["变量与数据口径表", "基准情景", "机制或模型图", "反事实结果与稳健性分析"],
+        "roles": ["经济决策主体", "掌握数据与模型的分析者", "受政策或市场变化影响的主体"],
+        "decision_task": "使用明确的经济机制和数据比较基准与反事实，并说明效率、分配和风险后果。",
+        "forbidden_patterns": ["只描述态度而没有变量与机制"],
+    },
+    "计算机科学": {
+        "name": "计算机与信息系统",
+        "family": "计算机科学 / 信息系统",
+        "required_elements": [
+            ("system_boundary", "系统边界与使用场景", "明确用户、输入输出、依赖和运行环境"),
+            ("technical_artifact", "技术对象", "提供架构、算法、数据结构、接口或代码片段"),
+            ("requirements", "功能与非功能需求", "给出性能、可靠性、安全、可维护性等指标"),
+            ("failure_evidence", "故障证据与复现", "提供日志、测试、指标或攻击路径等可分析证据"),
+            ("tradeoff", "技术方案与权衡", "比较至少两种方案的复杂度、成本、风险和适用条件"),
+        ],
+        "evidence_plan": ["系统架构或流程图", "输入输出样例", "日志/测试/性能数据", "方案对比表"],
+        "roles": ["需求或产品负责人", "开发/架构/数据工程角色", "测试、安全、运维或最终用户"],
+        "decision_task": "基于可复现技术证据诊断问题，比较方案并提交可验证的实现或架构决策。",
+        "forbidden_patterns": ["用沟通问题代替技术证据", "没有输入输出或测试结果"],
+    },
+    "工程技术": {
+        "name": "工程设计与系统分析",
+        "family": "工程技术",
+        "required_elements": [
+            ("engineering_object", "工程对象与工况", "明确系统边界、运行环境、载荷或工况"),
+            ("design_parameters", "设计参数与单位", "给出关键参数、单位、允许范围和数据来源"),
+            ("constraints_standards", "约束与标准", "说明安全、资源、法规、接口或制造约束"),
+            ("analysis_evidence", "分析、试验与证据", "提供计算、试验、故障或监测结果"),
+            ("design_tradeoff", "方案与工程权衡", "比较性能、安全、成本、进度和可维护性"),
+        ],
+        "evidence_plan": ["工程参数表", "系统/部件关系图", "试验或监测数据", "设计方案权衡矩阵"],
+        "roles": ["总体或设计负责人", "专业工程师", "试验、安全、制造或运行角色"],
+        "decision_task": "依据参数、约束和试验数据完成工程判断，并说明方案的安全裕度与失效风险。",
+        "forbidden_patterns": ["只有项目沟通而没有工程参数", "没有试验或计算证据"],
+    },
+    "教育学": {
+        "name": "教育与学习科学",
+        "family": "教育学",
+        "required_elements": [
+            ("learners_context", "学习者与教学情境", "明确学习者特征、前置能力和情境约束"),
+            ("learning_evidence", "学习证据", "提供作品、测评、观察、访谈或过程数据"),
+            ("learning_mechanism", "学习机制与理论", "用课程理论解释困难形成机制"),
+            ("intervention", "教学干预", "设计目标、活动、支架、资源和实施条件"),
+            ("evaluation", "评价与改进", "定义效果证据、比较基准和迭代方法"),
+        ],
+        "evidence_plan": ["学习者画像", "前测/作品/课堂观察", "干预流程", "评价量规与结果"],
+        "roles": ["学习者", "教师或课程设计者", "教研、家长或管理支持角色"],
+        "decision_task": "依据学习证据诊断困难，设计理论一致的干预并说明如何评价和迭代。",
+        "forbidden_patterns": ["只评价教师态度", "没有学习产出证据"],
+    },
+    "医学与健康": {
+        "name": "医学与健康决策",
+        "family": "医学 / 公共健康",
+        "required_elements": [
+            ("clinical_context", "人群或临床情境", "明确对象、时间过程、环境和风险边界"),
+            ("findings", "观察与检查证据", "区分症状、体征、检查、暴露和缺失信息"),
+            ("differential", "竞争性解释", "提出并比较多个合理诊断或机制假设"),
+            ("guideline_evidence", "指南或证据来源", "标注指南、共识或研究证据及适用条件"),
+            ("decision_safety", "干预、伦理与安全", "比较获益、风险、知情同意和随访监测"),
+        ],
+        "evidence_plan": ["时间线与主诉", "检查结果表", "鉴别诊断矩阵", "指南证据和安全监测"],
+        "roles": ["患者或目标人群", "临床/公共卫生专业人员", "检验、护理、伦理或管理角色"],
+        "decision_task": "在证据不完整条件下完成鉴别与风险分层，并提出安全、可复核的下一步方案。",
+        "forbidden_patterns": ["输出无来源的确定性诊断", "忽略伦理和安全边界"],
+    },
 }
 
 
@@ -90,7 +165,9 @@ def select_course_contract(payload: dict[str, Any]) -> tuple[str, dict[str, Any]
         if any(keyword.lower() in context for keyword in contract["match"]):
             return contract_id, deepcopy(contract), True
     subject = str(payload.get("subject") or "管理学")
-    fallback = deepcopy(SUBJECT_FALLBACKS.get(subject) or SUBJECT_FALLBACKS["管理学"])
+    subject_aliases = {"经济与金融": "经济学", "计算机与信息": "计算机科学", "教育": "教育学", "医学": "医学与健康", "工程": "工程技术"}
+    fallback_key = subject_aliases.get(subject, subject)
+    fallback = deepcopy(SUBJECT_FALLBACKS.get(fallback_key) or SUBJECT_FALLBACKS["管理学"])
     return f"subject:{subject}", fallback, False
 
 

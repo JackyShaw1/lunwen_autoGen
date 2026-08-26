@@ -103,12 +103,15 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
             "如存在教师确认蓝图，discipline_checklist 必须逐项覆盖 required_elements；不要写完整正文。"
         ),
         "CaseWriter": (
-            "请输出 JSON，字段：background, narrative, decision_point, characters[]。"
+            "请输出 JSON，字段：background, narrative, decision_point, characters[]，"
+            "discipline_coverage[{key,label,body_evidence}]，discipline_artifacts(object)。"
             f"硬性要求：background、narrative、decision_point 三个字段合计的可见字符数（不计空白）"
             f"目标为 {task.target_words} 字，验收范围为 "
             f"{math.ceil(task.target_words * 0.95)}–{math.floor(task.target_words * 1.05)} 字。"
             "建议背景占 10%–15%、主体叙事占 75%–80%、决策点占 8%–12%。"
             "必须通过具体场景、行动、数据、对话和利益冲突充实内容，不得用提纲、重复段落或说明字数凑篇幅；"
+            "如任务含 approved_blueprint，discipline_coverage 必须逐项覆盖 required_elements；body_evidence 必须是正文中真实出现的短证据片段，"
+            "discipline_artifacts 必须保存本课程可检查的数据表、公式、条款、代码、时间线、试验或其他专业对象。"
             "正文中不要出现目标字数。只返回合法 JSON。"
         ),
         "PedagogyDesigner": (
@@ -179,6 +182,25 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
                 errors.append(f"{key} 必须为非空字符串")
         if not isinstance(data.get("characters"), list) or len(data["characters"]) < 2:
             errors.append("characters 至少包含 2 个角色")
+        blueprint = (task.config or {}).get("approved_blueprint") or {}
+        if blueprint.get("required_elements"):
+            coverage = data.get("discipline_coverage")
+            artifacts = data.get("discipline_artifacts")
+            if not isinstance(coverage, list):
+                errors.append("discipline_coverage 必须为数组")
+            else:
+                visible = " ".join(str(data.get(key) or "") for key in ("background", "narrative", "decision_point"))
+                expected = {str(item.get("key")) for item in blueprint["required_elements"] if isinstance(item, dict)}
+                covered = {
+                    str(item.get("key")) for item in coverage
+                    if isinstance(item, dict) and len(str(item.get("body_evidence") or "").strip()) >= 4
+                    and str(item.get("body_evidence") or "").strip() in visible
+                }
+                missing = expected - covered
+                if missing:
+                    errors.append("discipline_coverage 缺少正文证据：" + "、".join(sorted(missing)))
+            if not isinstance(artifacts, dict) or not artifacts:
+                errors.append("discipline_artifacts 必须提供可检查的专业数据、条款、公式、代码、时间线或试验对象")
 
     elif agent == "PedagogyDesigner":
         questions = data.get("discussion_questions")
@@ -337,7 +359,8 @@ async def _repair_casewriter_length(
             f"当前可见字符数：{actual}；目标：{task.target_words}；合格范围：{minimum}–{maximum}。\n"
             "篇幅不足时重点补充具体场景、行动过程、数据证据、角色对话、利益权衡和逐步升级的冲突；篇幅超出时压缩次要信息。"
             "不得复制段落、空泛总结或在正文中谈论字数。\n"
-            "只返回 JSON：{background:string,narrative:string,decision_point:string,characters:array}。\n"
+            "保留并更新 discipline_coverage 与 discipline_artifacts，确保每个 body_evidence 仍能在修订后正文中原样找到。"
+            "只返回 JSON：{background:string,narrative:string,decision_point:string,characters:array,discipline_coverage:array,discipline_artifacts:object}。\n"
             f"当前正文：\n{yaml.safe_dump(body, allow_unicode=True)}"
         )
         cfg = _load_agent_config(db, "CaseWriter")
@@ -407,6 +430,8 @@ def _run_agent_mock(agent: str, task: CaseTask, package: dict[str, Any]) -> tupl
             "narrative": package["body"]["narrative"],
             "decision_point": package["body"]["decision_point"],
             "characters": package["body"]["characters"],
+            "discipline_coverage": package.get("discipline_coverage") or [],
+            "discipline_artifacts": package.get("discipline_artifacts") or {},
         }
         summary = f"案例正文已通过验收：实际 {actual} 字 / 目标 {task.target_words} 字"
     elif agent == "PedagogyDesigner":

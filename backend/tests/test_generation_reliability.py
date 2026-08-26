@@ -114,6 +114,37 @@ class GenerationReliabilityTests(unittest.TestCase):
         self.assertFalse(validation["passed"])
         self.assertTrue(any(issue["code"] == "discipline_artifacts_missing" for issue in validation["issues"]))
 
+    def test_unlisted_course_uses_generic_contract_and_writer_evidence_contract(self) -> None:
+        task = make_task(2)
+        task.title = "高并发订单系统的缓存一致性故障"
+        task.subject = "计算机科学"
+        task.course_name = "分布式系统"
+        payload = {
+            "title": task.title, "subject": task.subject, "course_name": task.course_name,
+            "case_type": task.case_type, "difficulty": task.difficulty,
+            "target_audience": task.target_audience, "learning_objectives": task.learning_objectives,
+        }
+        blueprint = build_case_blueprint(payload)
+        self.assertEqual(blueprint["contract_id"], "subject:计算机科学")
+        self.assertGreaterEqual(len(blueprint["required_elements"]), 5)
+        blueprint["approved"] = True
+        task.config = {"class_hours": 2, "approved_blueprint": blueprint}
+        evidence = [f"证据片段{index}用于{item['label']}" for index, item in enumerate(blueprint["required_elements"], 1)]
+        output = {
+            "background": "；".join(evidence),
+            "narrative": "系统通过日志、测试与指标定位故障，并比较两种技术方案。",
+            "decision_point": "请选择架构方案并给出验证方法、风险和回滚条件。",
+            "characters": [{"name": "架构师"}, {"name": "测试负责人"}],
+            "discipline_coverage": [
+                {"key": item["key"], "label": item["label"], "body_evidence": evidence[index]}
+                for index, item in enumerate(blueprint["required_elements"])
+            ],
+            "discipline_artifacts": {"architecture": "缓存—数据库一致性路径", "test_results": ["并发回归测试"]},
+        }
+        self.assertEqual(_validate_agent_output("CaseWriter", output, task), [])
+        output["discipline_coverage"].pop()
+        self.assertTrue(any("缺少正文证据" in issue for issue in _validate_agent_output("CaseWriter", output, task)))
+
     def test_objective_brief_turns_teacher_intent_into_observable_goals(self) -> None:
         result = generate_objectives({
             "title": "制造企业数字化转型中的组织阻力",

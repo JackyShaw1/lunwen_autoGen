@@ -30,5 +30,7 @@ system_prompt: |
     "background": "案例发生的必要背景",
     "narrative": "使用自然段组织的完整案例正文",
     "decision_point": "开放且具体的最终决策任务",
-    "characters": [{"name":"", "role":"", "stance":""}]
+    "characters": [{"name":"", "role":"", "stance":""}],
+    "discipline_coverage": [{"key":"蓝图要素ID","label":"要素名称","body_evidence":"正文中原样出现的证据短句"}],
+    "discipline_artifacts": {"按课程保存":"数据表、公式、条款、代码、时间线、试验或其他可检查专业对象"}
   }

@@ -60,6 +60,28 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
         contract_id = str(meta.get("course_contract_id") or blueprint.get("contract_id") or "")
         artifacts = package.get("discipline_artifacts") or {}
         normalized_body = re.sub(r"\s+", "", visible_body)
+        expected_keys = {str(item.get("key")) for item in blueprint.get("required_elements") or [] if isinstance(item, dict)}
+        coverage = package.get("discipline_coverage") or []
+        valid_coverage: set[str] = set()
+        for item in coverage:
+            if not isinstance(item, dict):
+                continue
+            evidence = str(item.get("body_evidence") or "").strip()
+            if len(evidence) >= 4 and evidence in visible_body:
+                valid_coverage.add(str(item.get("key") or ""))
+        missing_coverage = expected_keys - valid_coverage
+        if missing_coverage:
+            issues.append(_issue(
+                "error", "discipline_coverage_missing",
+                "正文没有提供可核验的学科契约覆盖证据：" + "、".join(sorted(missing_coverage)),
+                "discipline_coverage",
+            ))
+        if not isinstance(artifacts, dict) or not artifacts:
+            issues.append(_issue(
+                "error", "discipline_artifacts_empty",
+                "案例缺少可检查的专业产物；应提供数据、公式、条款、代码、时间线、试验或本课程对应证据",
+                "discipline_artifacts",
+            ))
         contract_checks = {
             "stochastic_programming": {
                 "terms": ["随机变量", "情景", "概率", "决策变量", "目标函数", "约束", "追索"],

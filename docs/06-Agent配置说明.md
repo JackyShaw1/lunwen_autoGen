@@ -258,7 +258,7 @@ limits:
 
 `design-instructional-plan` 同时负责目标简报解释。教师无需写自由 Prompt，只回答学生卡点、课后表现、必用知识方法和评价证据；简报随任务上下文进入 Planner、Writer 和 PedagogyDesigner。Agent 必须忠实使用该意图，但教师手工修改后的 `learning_objectives` 优先级更高。
 
-生成前先由 `course_blueprint_service.py` 匹配课程内容契约。教师确认后的 `approved_blueprint` 是五个 Agent 的硬上游输入：Planner 不得更换案例任务，DomainExpert 必须逐项返回 `discipline_checklist`，Writer 必须保留 `discipline_artifacts` 中的数据、公式、条款或时间线，Reviewer 和确定性脚本共同检查缺项与通用套壳。首批主题契约覆盖随机规划与合同法；无模型且无专用契约/审核资料包时停止正式生成。
+生成前先由 `course_blueprint_service.py` 匹配“学科原型—课程族—主题规则”三级内容契约。教师确认后的 `approved_blueprint` 是五个 Agent 的硬上游输入：Planner 不得更换案例任务，DomainExpert 必须逐项返回 `discipline_checklist`，Writer 必须逐项返回正文证据 `discipline_coverage` 并保留数据、公式、条款、代码、时间线或试验等 `discipline_artifacts`，Reviewer 和确定性脚本共同检查缺项与通用套壳。通用算法适用于所有课程；随机规划与合同法只是主题规则和回归样例。无模型且无专用主题规则/审核资料包时停止正式生成，避免用低可信模板冒充通用能力。
 
 ---
 
