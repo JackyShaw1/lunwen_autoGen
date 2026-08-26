@@ -66,8 +66,8 @@
 
 ```
 TeacherProxy     → 任务包（教师参数 JSON）
-CasePlanner      → CaseOutline JSON（大纲、决策点、角色表）
-DomainExpert     → ContextPack JSON（情境素材、术语、约束）
+CasePlanner      → 教师确认蓝图约束下的 CaseOutline JSON（大纲、决策点、角色表）
+DomainExpert     → ContextPack JSON（情境素材、术语、约束、discipline_checklist）
 CaseWriter       → body.narrative（案例正文）
 PedagogyDesigner → discussion_questions + instructor_guide 初稿
 Reviewer         → quality 评分 + revision_advice + pass/fail
@@ -257,6 +257,8 @@ limits:
 每次生成会把 Agent 对应的 Skill 名称、修订号和所选参考资料写入 `meta.skill_trace`，方便追溯线上案例使用了哪套方法。
 
 `design-instructional-plan` 同时负责目标简报解释。教师无需写自由 Prompt，只回答学生卡点、课后表现、必用知识方法和评价证据；简报随任务上下文进入 Planner、Writer 和 PedagogyDesigner。Agent 必须忠实使用该意图，但教师手工修改后的 `learning_objectives` 优先级更高。
+
+生成前先由 `course_blueprint_service.py` 匹配课程内容契约。教师确认后的 `approved_blueprint` 是五个 Agent 的硬上游输入：Planner 不得更换案例任务，DomainExpert 必须逐项返回 `discipline_checklist`，Writer 必须保留 `discipline_artifacts` 中的数据、公式、条款或时间线，Reviewer 和确定性脚本共同检查缺项与通用套壳。首批主题契约覆盖随机规划与合同法；无模型且无专用契约/审核资料包时停止正式生成。
 
 ---
 

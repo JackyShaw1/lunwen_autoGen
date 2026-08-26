@@ -26,6 +26,7 @@ from app.services.package_builder import (
 from app.services.progress_hub import progress_hub
 from app.services.rubric_service import score_package
 from app.services.skill_loader import build_agent_skill_context, validate_package_with_skill
+from app.services.course_blueprint_service import text_similarity
 
 import logging
 
@@ -97,8 +98,9 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
             "人物至少 3 个，决策点必须是学生需要完成的具体任务。"
         ),
         "DomainExpert": (
-            "请输出 JSON，字段：domain_notes(string)，characters(可选更新)。"
-            "domain_notes 必须包含专业机制、可用证据、关键约束和需避免的失真；不要写完整正文。"
+            "请输出 JSON，字段：domain_notes(string)，discipline_checklist[{key,label,acceptance}]，characters(可选更新)。"
+            "domain_notes 必须包含专业机制、可用证据、关键约束和需避免的失真；"
+            "如存在教师确认蓝图，discipline_checklist 必须逐项覆盖 required_elements；不要写完整正文。"
         ),
         "CaseWriter": (
             "请输出 JSON，字段：background, narrative, decision_point, characters[]。"
@@ -157,6 +159,17 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
     elif agent == "DomainExpert":
         if not isinstance(data.get("domain_notes"), str) or not data["domain_notes"].strip():
             errors.append("domain_notes 必须为非空字符串")
+        blueprint = (task.config or {}).get("approved_blueprint") or {}
+        if blueprint.get("required_elements"):
+            checklist = data.get("discipline_checklist")
+            if not isinstance(checklist, list):
+                errors.append("discipline_checklist 必须为数组")
+            else:
+                expected = {str(item.get("key")) for item in blueprint["required_elements"] if isinstance(item, dict)}
+                present = {str(item.get("key")) for item in checklist if isinstance(item, dict) and item.get("acceptance")}
+                missing = expected - present
+                if missing:
+                    errors.append("discipline_checklist 缺少课程要素：" + "、".join(sorted(missing)))
         if "characters" in data and not isinstance(data["characters"], list):
             errors.append("characters 必须为数组")
 
@@ -360,25 +373,35 @@ def _run_agent_mock(agent: str, task: CaseTask, package: dict[str, Any]) -> tupl
         }
         summary = "已生成案例大纲与学习目标结构"
     elif agent == "DomainExpert":
-        grounded = (package.get("meta") or {}).get("content_mode") == "source_grounded"
+        content_mode = (package.get("meta") or {}).get("content_mode")
+        grounded = content_mode == "source_grounded"
+        contract_driven = content_mode == "discipline_contract"
         teacher = package.get("teacher_requirements") or {}
+        blueprint = package.get("case_blueprint") or {}
         data = {
             "domain_notes": (
                 "事实型案例约束：知识锚点为"
                 + "、".join(teacher.get("knowledge_anchors") or [])
                 + "；所有事实必须对应 evidence_sources，推断需明确标注，禁止虚构人物、数据和历史对话。"
-                if grounded else
+                if grounded else (
+                "课程内容契约：" + "；".join(
+                    f"{item.get('label')}—{item.get('planned_use')}"
+                    for item in blueprint.get("required_elements") or []
+                ) + "。正文必须呈现相应专业对象、证据和推理任务，禁止退化为通用组织变革故事。"
+                if contract_driven else
                 f"{task.subject}情境约束：术语使用需符合《{task.course_name}》教学语境，"
                 "避免过度简化专业机制。"
-            )
+                )
+            ),
+            "discipline_checklist": [
+                {"key": item.get("key"), "label": item.get("label"), "acceptance": item.get("planned_use")}
+                for item in blueprint.get("required_elements") or []
+            ],
         }
         summary = "已补充学科情境与术语约束"
     elif agent == "CaseWriter":
-        actual = (
-            update_body_length_meta(package, task.target_words)
-            if (package.get("meta") or {}).get("content_mode") == "source_grounded"
-            else ensure_mock_body_length(package, task)
-        )
+        content_mode = (package.get("meta") or {}).get("content_mode")
+        actual = update_body_length_meta(package, task.target_words) if content_mode in {"source_grounded", "discipline_contract"} else ensure_mock_body_length(package, task)
         data = {
             "background": package["body"]["background"],
             "narrative": package["body"]["narrative"],
@@ -654,7 +677,9 @@ async def run_pipeline(db: Session, task_id: str) -> None:
     next_version = (latest.version + 1) if latest else 1
     normalize_case_package(package)
 
-    source_grounded = (package.get("meta") or {}).get("content_mode") == "source_grounded"
+    content_mode = (package.get("meta") or {}).get("content_mode")
+    source_grounded = content_mode == "source_grounded"
+    contract_driven = content_mode == "discipline_contract"
     # Audited profiles must remain deterministic: a free-form model rewrite could add
     # unsupported people, numbers or dialogue and break the teacher's evidence policy.
     use_llm = llm_available() and not source_grounded
@@ -812,7 +837,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                     )
                     tokens += repair_tokens
                 else:
-                    if not source_grounded:
+                    if not source_grounded and not contract_driven:
                         ensure_mock_body_length(package, task)
 
                 actual = update_body_length_meta(package, task.target_words)
@@ -904,6 +929,31 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         package.setdefault("meta", {})["skill_trace"] = skill_trace
         failure_stage = "quality_gate"
         validation = validate_package_with_skill(package, _task_context(task))
+        current_narrative = str((package.get("body") or {}).get("narrative") or "")
+        previous_packages = (
+            db.query(CasePackage)
+            .join(CaseTask, CaseTask.id == CasePackage.task_id)
+            .filter(CaseTask.user_id == task.user_id, CaseTask.id != task.id)
+            .order_by(CasePackage.created_at.desc())
+            .limit(30)
+            .all()
+        )
+        highest_similarity = 0.0
+        similar_title = ""
+        for previous in previous_packages:
+            previous_narrative = str(((previous.package or {}).get("body") or {}).get("narrative") or "")
+            similarity = text_similarity(current_narrative, previous_narrative)
+            if similarity > highest_similarity:
+                highest_similarity = similarity
+                similar_title = str(((previous.package or {}).get("meta") or {}).get("title") or "历史案例")
+        validation["cross_case_similarity"] = round(highest_similarity, 3)
+        if highest_similarity >= 0.38:
+            validation["issues"].append({
+                "severity": "error", "code": "cross_case_template_similarity",
+                "message": f"正文与《{similar_title}》高度相似（{highest_similarity:.0%}），疑似跨课程套壳",
+                "path": "body.narrative",
+            })
+            validation["passed"] = False
         package.setdefault("quality", {})["validation"] = validation
         validation_errors = [
             issue["message"] for issue in validation["issues"] if issue.get("severity") == "error"

@@ -52,6 +52,40 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
     if any(phrase in narrative for phrase in ("目标字数", "目标篇幅", "案例类型为")):
         issues.append(_issue("warning", "instructional_meta", "学生正文中出现生成或配置元语言", "body.narrative"))
 
+    meta = package.get("meta") or {}
+    if meta.get("content_mode") == "discipline_contract":
+        blueprint = package.get("case_blueprint") or {}
+        if not blueprint.get("approved"):
+            issues.append(_issue("error", "blueprint_not_approved", "案例蓝图未经教师确认", "case_blueprint.approved"))
+        contract_id = str(meta.get("course_contract_id") or blueprint.get("contract_id") or "")
+        artifacts = package.get("discipline_artifacts") or {}
+        normalized_body = re.sub(r"\s+", "", visible_body)
+        contract_checks = {
+            "stochastic_programming": {
+                "terms": ["随机变量", "情景", "概率", "决策变量", "目标函数", "约束", "追索"],
+                "artifacts": ["scenario_table", "variables", "objective_function", "constraints"],
+            },
+            "contract_law": {
+                "terms": ["合同条款", "验收", "解除", "违约", "抗辩", "证据", "救济"],
+                "artifacts": ["jurisdiction", "clauses", "chronology", "legal_issues"],
+            },
+        }.get(contract_id)
+        if contract_checks:
+            missing_terms = [term for term in contract_checks["terms"] if term not in normalized_body]
+            if missing_terms:
+                issues.append(_issue("error", "discipline_elements_missing", "正文缺少课程必备要素：" + "、".join(missing_terms), "body"))
+            missing_artifacts = [key for key in contract_checks["artifacts"] if not artifacts.get(key)]
+            if missing_artifacts:
+                issues.append(_issue("error", "discipline_artifacts_missing", "案例缺少专业数据或证据结构：" + "、".join(missing_artifacts), "discipline_artifacts"))
+        forbidden = [str(item) for item in blueprint.get("forbidden_patterns") or [] if str(item)]
+        used_forbidden = [item for item in forbidden if item in visible_body]
+        if used_forbidden:
+            issues.append(_issue("error", "generic_template_leak", "正文混入被课程契约禁止的通用套壳内容：" + "、".join(used_forbidden), "body"))
+        generic_names = {"陈启明", "林晓雯", "赵磊"}
+        used_names = {str(item.get("name") or "") for item in body.get("characters") or [] if isinstance(item, dict)}
+        if generic_names & used_names:
+            issues.append(_issue("error", "generic_template_characters", "课程案例仍在使用通用组织变革模板人物", "body.characters"))
+
     requirement_text = " ".join(
         str(value)
         for value in [
@@ -67,7 +101,6 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
         )
     )
     if strict_grounding:
-        meta = package.get("meta") or {}
         if meta.get("content_mode") != "source_grounded":
             issues.append(_issue("error", "grounding_mode_missing", "教师要求事实准确，案例必须使用来源约束模式", "meta.content_mode"))
         if "教学虚构" in str(meta.get("fictional_disclaimer") or ""):

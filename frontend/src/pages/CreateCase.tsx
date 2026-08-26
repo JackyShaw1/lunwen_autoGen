@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BookOpenCheck, Check, CheckCircle2, Clock3, FileText, Lightbulb, RefreshCw, Sparkles, Target, Users, WandSparkles } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BookOpenCheck, Check, CheckCircle2, ClipboardCheck, Clock3, FileText, Lightbulb, RefreshCw, ShieldCheck, Sparkles, Target, Users, WandSparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Label, Select, Textarea } from '@/components/ui/Input'
-import { createCase, suggestLearningObjectives, type ObjectiveSuggestion } from '@/features/cases/api'
+import { createCase, generateCaseBlueprint, suggestLearningObjectives, type ObjectiveSuggestion } from '@/features/cases/api'
+import type { CaseBlueprint } from '@/types/case'
 
 const schema = z.object({
   title: z.string().min(5, '请用至少 5 个字描述案例主题'),
@@ -76,9 +77,18 @@ export default function CreateCase() {
   const [objectiveSuggestion, setObjectiveSuggestion] = useState<ObjectiveSuggestion | null>(null)
   const [objectiveVariant, setObjectiveVariant] = useState(0)
   const [isSuggesting, setIsSuggesting] = useState(false)
+  const [blueprint, setBlueprint] = useState<CaseBlueprint | null>(null)
+  const [blueprintError, setBlueprintError] = useState('')
+  const [isBuildingBlueprint, setIsBuildingBlueprint] = useState(false)
   const values = watch()
   const contextReady = values.title.trim().length >= 5 && values.course_name.trim().length > 0
   const briefFields = Object.values(values.objective_brief || {}).filter((value) => value.trim()).length
+  const contextSignature = [values.title, values.subject, values.course_name, values.case_type, values.difficulty, values.target_audience, ...(values.learning_objectives || []).map((item) => item.value), ...Object.values(values.objective_brief || {})].join('|')
+
+  useEffect(() => {
+    setBlueprint(null)
+    setBlueprintError('')
+  }, [contextSignature])
 
   const fillBriefExample = () => {
     setValue('objective_brief.learning_challenge', '学生只能复述概念，无法结合案例证据解释问题形成机制')
@@ -115,6 +125,29 @@ export default function CreateCase() {
 
   const onSubmit = async (data: FormValues) => {
     setSubmitError('')
+    setBlueprintError('')
+    if (!blueprint) {
+      setIsBuildingBlueprint(true)
+      try {
+        const result = await generateCaseBlueprint({
+          title: data.title,
+          subject: data.subject,
+          course_name: data.course_name,
+          case_type: data.case_type,
+          difficulty: data.difficulty,
+          target_audience: data.target_audience,
+          learning_objectives: data.learning_objectives.map((item) => item.value),
+          objective_brief: data.objective_brief,
+        })
+        setBlueprint(result)
+        window.setTimeout(() => document.getElementById('case-blueprint')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+      } catch {
+        setBlueprintError('案例蓝图生成失败，请稍后重试。')
+      } finally {
+        setIsBuildingBlueprint(false)
+      }
+      return
+    }
     try {
       const task = await createCase({
         title: data.title,
@@ -129,6 +162,7 @@ export default function CreateCase() {
         learning_objectives: data.learning_objectives.map((o) => o.value),
         special_requirements: data.special_requirements,
         objective_brief: data.objective_brief,
+        approved_blueprint: { ...blueprint, approved: true },
       })
       navigate(`/case/${task.id}/generate`)
     } catch (e: unknown) {
@@ -149,7 +183,7 @@ export default function CreateCase() {
       <form onSubmit={handleSubmit(onSubmit)} className="grid items-start gap-7 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           <Card>
-            <SectionTitle icon={BookOpenCheck} step="1/3" title="定义课程情境" desc="让系统理解这份案例服务于哪门课、哪类学生" />
+            <SectionTitle icon={BookOpenCheck} step="1/4" title="定义课程情境" desc="让系统理解这份案例服务于哪门课、哪类学生" />
             <div className="space-y-5">
               <div>
                 <Label>案例主题 <span className="text-red-500">*</span></Label>
@@ -170,7 +204,7 @@ export default function CreateCase() {
           </Card>
 
           <Card>
-            <SectionTitle icon={Target} step="2/3" title="明确学习目标" desc="目标将用于设计冲突、讨论题和课堂活动" />
+            <SectionTitle icon={Target} step="2/4" title="明确学习目标" desc="目标将用于设计冲突、讨论题和课堂活动" />
             <div className="mb-5 overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50/60">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-indigo-100 bg-white/70 p-4">
                 <div className="flex gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-primary"><WandSparkles size={18} /></span><div><p className="text-sm font-bold text-slate-900">不用写提示词，只回答 4 个教学问题</p><p className="mt-1 text-xs leading-5 text-slate-500">可以只填你最确定的内容，系统会把教学意图整理成专业目标。</p></div></div>
@@ -215,7 +249,7 @@ export default function CreateCase() {
           </Card>
 
           <Card>
-            <SectionTitle icon={Sparkles} step="3/3" title="设定产出偏好" desc="控制篇幅、课堂节奏与 AI 协作深度" />
+            <SectionTitle icon={Sparkles} step="3/4" title="设定产出偏好" desc="控制篇幅、课堂节奏与 AI 协作深度" />
             <div className="grid gap-4 md:grid-cols-3">
               <div><Label>案例正文字数</Label><Input type="number" {...register('target_words')} /></div>
               <div><Label>计划课时</Label><Input type="number" {...register('class_hours')} /></div>
@@ -223,6 +257,23 @@ export default function CreateCase() {
             </div>
             <div className="mt-5"><Label>需要特别关注的要求</Label><Textarea rows={4} {...register('special_requirements')} placeholder="例如：突出中层与一线员工的立场冲突；避免出现真实企业名称……" /><p className="mt-1.5 text-xs text-slate-400">选填。可以说明希望强调或避免的内容。</p></div>
           </Card>
+
+          {(blueprint || blueprintError) && (
+            <Card id="case-blueprint" className="scroll-mt-6 border-indigo-200">
+              <SectionTitle icon={ClipboardCheck} step="4/4" title="确认案例蓝图" desc="先确认 AI 对学科要素和案例任务的理解，再生成完整正文" />
+              {blueprintError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{blueprintError}</p>}
+              {blueprint && <div className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-950 p-4 text-white"><div><p className="text-xs text-slate-400">已匹配课程内容契约</p><p className="mt-1 font-bold">{blueprint.contract_name} · {blueprint.course_family}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${blueprint.exact_match ? 'bg-emerald-400/20 text-emerald-300' : 'bg-amber-400/20 text-amber-200'}`}>学科匹配 {blueprint.authenticity_score}%</span></div>
+                {blueprint.missing_information.length > 0 && <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>{blueprint.missing_information.join('；')}</span></div>}
+                <div><Label>案例核心问题</Label><Textarea rows={2} value={blueprint.case_core} onChange={(event) => setBlueprint({ ...blueprint, case_core: event.target.value })} /></div>
+                <div><div className="mb-2 flex items-center justify-between"><Label>正文必须使用的学科要素</Label><span className="text-xs text-slate-400">可以直接修改使用方式</span></div><div className="space-y-2">{blueprint.required_elements.map((item, index) => <div key={item.key} className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[150px_minmax(0,1fr)]"><div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CheckCircle2 size={15} className="text-emerald-600" />{item.label}</div><Input value={item.planned_use} onChange={(event) => setBlueprint({ ...blueprint, required_elements: blueprint.required_elements.map((current, currentIndex) => currentIndex === index ? { ...current, planned_use: event.target.value } : current) })} /></div>)}</div></div>
+                <div className="grid gap-4 md:grid-cols-2"><div><Label>需要呈现的数据与证据</Label><Textarea rows={5} value={blueprint.evidence_plan.join('\n')} onChange={(event) => setBlueprint({ ...blueprint, evidence_plan: event.target.value.split('\n').filter(Boolean) })} /></div><div><Label>合理的专业角色</Label><Textarea rows={5} value={blueprint.roles.join('\n')} onChange={(event) => setBlueprint({ ...blueprint, roles: event.target.value.split('\n').filter(Boolean) })} /></div></div>
+                <div><Label>学生最终要完成的任务</Label><Textarea rows={3} value={blueprint.decision_task} onChange={(event) => setBlueprint({ ...blueprint, decision_task: event.target.value })} /></div>
+                <div className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-800"><ShieldCheck size={16} className="mt-0.5 shrink-0" /><span>{blueprint.fact_boundary}</span></div>
+                <div className="flex justify-end"><Button type="button" variant="outline" size="sm" onClick={() => setBlueprint(null)}><RefreshCw size={14} />重新判断蓝图</Button></div>
+              </div>}
+            </Card>
+          )}
 
           {submitError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{submitError}</div>}
         </div>
@@ -239,11 +290,11 @@ export default function CreateCase() {
             <div className="my-5 border-t border-indigo-100" />
             <p className="text-xs font-semibold text-slate-500">将生成</p>
             <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              {['案例正文与决策点', '分层讨论题', '教师参考手册', '教学目标对齐表'].map((item) => <li key={item} className="flex items-center gap-2"><Check size={15} className="text-emerald-600" />{item}</li>)}
+              {['先生成可编辑案例蓝图', '确认后生成专业正文', '分层讨论题与教师手册', '学科要素与套壳质量检查'].map((item) => <li key={item} className="flex items-center gap-2"><Check size={15} className="text-emerald-600" />{item}</li>)}
             </ul>
           </Card>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-500"><div className="flex gap-2"><FileText size={16} className="mt-0.5 shrink-0 text-primary" /><span>启动后可实时查看各专业角色的产出；完成后所有内容仍可编辑。</span></div></div>
-          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>{isSubmitting ? '正在创建任务…' : <><Sparkles size={18} />开始生成授课包</>}</Button>
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || isBuildingBlueprint}>{isBuildingBlueprint ? '正在分析学科并生成蓝图…' : isSubmitting ? '正在创建任务…' : blueprint ? <><ClipboardCheck size={18} />确认蓝图并生成全文</> : <><Sparkles size={18} />生成并检查案例蓝图</>}</Button>
           <Button type="button" variant="ghost" className="w-full" onClick={() => navigate('/dashboard')}>取消并返回</Button>
         </aside>
       </form>

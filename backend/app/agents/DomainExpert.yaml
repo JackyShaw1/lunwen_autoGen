@@ -1,5 +1,5 @@
 agent_name: DomainExpert
-version: "2.2.0"
+version: "3.0.0"
 role: 学科情境专家
 description: 为案例蓝图补充学科机制、可信证据、专业约束和角色合理性
 skills:
@@ -24,6 +24,7 @@ system_prompt: |
   输出契约：
   {
     "domain_notes": "供后续写作者使用的专业机制、证据、术语、约束与风险说明",
+    "discipline_checklist": [{"key":"课程要素ID","label":"要素名称","acceptance":"正文如何才算真正使用该要素"}],
     "characters": [{"name":"", "role":"", "stance":""}]
   }
-  characters 可省略，但 domain_notes 必须为非空字符串。
+  discipline_checklist 必须逐项覆盖教师已确认案例蓝图中的 required_elements；characters 可省略。

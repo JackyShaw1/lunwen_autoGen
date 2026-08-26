@@ -1,4 +1,4 @@
-import type { CaseTask, CasePackage, DashboardStats, CreateCasePayload, ObjectiveBrief, StatsRange, VideoResource, VisualAsset } from '@/types/case'
+import type { CaseTask, CasePackage, CaseBlueprint, DashboardStats, CreateCasePayload, ObjectiveBrief, StatsRange, VideoResource, VisualAsset } from '@/types/case'
 import { api } from '@/lib/api-client'
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
@@ -81,6 +81,20 @@ export async function fetchDashboardStats(range: StatsRange): Promise<DashboardS
 
 export async function createCase(payload: CreateCasePayload): Promise<CaseTask> {
   const { data } = await api.post<CaseTask>('/cases', payload)
+  return data
+}
+
+export async function generateCaseBlueprint(payload: {
+  title: string
+  subject: string
+  course_name: string
+  case_type: string
+  difficulty: string
+  target_audience: string
+  learning_objectives: string[]
+  objective_brief?: ObjectiveBrief
+}): Promise<CaseBlueprint> {
+  const { data } = await api.post<CaseBlueprint>('/cases/blueprint', payload)
   return data
 }
 

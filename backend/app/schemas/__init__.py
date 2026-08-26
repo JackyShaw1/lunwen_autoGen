@@ -65,6 +65,36 @@ class CreateCaseRequest(BaseModel):
     class_hours: int | None = 2
     special_requirements: str | None = None
     objective_brief: ObjectiveBrief | None = None
+    approved_blueprint: dict[str, Any] | None = None
+
+
+class CaseBlueprintRequest(BaseModel):
+    title: str = Field(min_length=5, max_length=500)
+    subject: str
+    course_name: str = Field(min_length=1, max_length=200)
+    case_type: str = "决策型"
+    difficulty: str = "中级"
+    target_audience: str = "本科"
+    learning_objectives: list[str] = []
+    objective_brief: ObjectiveBrief | None = None
+
+
+class CaseBlueprintResponse(BaseModel):
+    signature: str
+    contract_id: str
+    contract_name: str
+    course_family: str
+    exact_match: bool
+    case_core: str
+    required_elements: list[dict[str, Any]]
+    evidence_plan: list[str]
+    roles: list[str]
+    decision_task: str
+    fact_boundary: str
+    forbidden_patterns: list[str]
+    missing_information: list[str]
+    authenticity_score: int
+    approved: bool = False
 
 
 class ObjectiveSuggestionRequest(BaseModel):

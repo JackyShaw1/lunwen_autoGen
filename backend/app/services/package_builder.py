@@ -8,6 +8,7 @@ from typing import Any
 
 from app.models import CaseTask
 from app.services.rubric_service import score_package
+from app.services.course_blueprint_service import select_course_contract
 from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
 from app.services.material_service import get_official_material, material_context_signature, recommended_materials
 from app.services.video_service import recommended_videos
@@ -279,6 +280,144 @@ def _build_grounded_package(task: CaseTask, profile: dict[str, Any]) -> dict[str
     return package
 
 
+def _apply_discipline_contract(package: dict[str, Any], task: CaseTask, blueprint: dict[str, Any]) -> None:
+    """Replace the generic fallback with course-native entities, evidence and decisions."""
+    contract_id = str(blueprint.get("contract_id") or "")
+    body = package.setdefault("body", {})
+    artifacts: dict[str, Any]
+    if contract_id == "stochastic_programming":
+        body["characters"] = [
+            {"name": "周岚", "role": "供应链计划负责人", "stance": "要求在订货截止前确定一阶段采购量"},
+            {"name": "顾言", "role": "运筹分析师", "stance": "主张使用两阶段随机规划并保留追索决策"},
+            {"name": "许峰", "role": "运营负责人", "stance": "担心模型平均结果掩盖高需求情景下的缺货风险"},
+        ]
+        body["background"] = (
+            "某医疗耗材配送中心需要在季度合同锁价日前确定基础采购量。需求在采购决定后才逐步显现，"
+            "而加急采购价格更高、库存剩余会产生处置成本。过去使用平均需求制定计划，在需求波动较大时频繁出现缺货或积压。"
+            "本案例中的机构和数据均为教学虚构，重点训练两阶段随机规划建模与风险解释。"
+        )
+        segments = [
+            "周岚要求团队在周五前提交采购方案。顾言把决策过程拆成两个阶段：一阶段变量x表示在需求揭示前按合同价采购的数量；二阶段变量y_s与z_s分别表示情景s发生后的加急采购量和剩余处置量。这个划分意味着课堂讨论不能只比较人物态度，而要解释哪些决策能够等待信息、哪些不能。",
+            "需求被整理为三个离散情景：低需求800箱，概率0.25；基准需求1000箱，概率0.50；高需求1250箱，概率0.25。基础采购单价为每箱80元，加急采购为每箱118元，剩余处置只能回收每箱35元。仓储能力上限为1150箱，但高需求情景允许通过加急直送满足部分需求。",
+            "顾言给出的平衡约束为x+y_s-z_s=d_s，其中d_s是情景需求；同时0≤x≤1150，y_s≥0，z_s≥0。目标函数不是追求某个情景的最低成本，而是最小化80x加上各情景概率加权后的追索成本，即Σp_s(118y_s-35z_s)。模型把随机变量、情景概率、决策变量和约束放进同一个可检验结构。",
+            "财务部门提出确定性替代方案：直接把期望需求1000箱代入模型并采购1000箱。该方案在基准情景下表现良好，却没有说明高需求时的加急成本和低需求时的处置损失。许峰要求同时报告期望成本、最坏情景成本和缺货服务风险，避免只用一个平均数掩盖尾部后果。",
+            "分析师分别计算采购900、1000和1100箱的情景成本。采购900箱保留了库存灵活性，但高需求时需要加急350箱；采购1100箱降低了高需求追索成本，却会在低需求时处置300箱；采购1000箱位于两者之间。学生需要依据概率加权结果复核，而不能把中间方案直接视为最优。",
+            "新信息随后改变了模型边界。供应商提出，如果基础采购超过1050箱，超出部分可享受每箱76元的阶梯价格；但仓储部门表示超过1080箱将触发额外固定租仓费用。阶梯价格使目标函数出现分段结构，固定费用又可能需要引入0—1变量，原来的线性模型必须作出解释性调整。",
+            "许峰进一步质疑三个情景的概率来自过去两年数据，而今年新增客户可能使高需求概率上升。顾言因此设计概率敏感性分析：将高需求概率从0.25逐步提高，同时保持概率和为1，观察最优x何时发生变化。概率不是装饰性数据，而是影响一阶段决策的核心输入。",
+            "周岚关注的是可执行性。即使某个方案期望成本最低，如果高需求时加急供应能力上限只有180箱，平衡约束可能无法满足。团队加入y_s≤180，并讨论是否允许缺货变量u_s及其单位惩罚成本。惩罚成本如何设定，实际对应服务水平、患者影响和合同责任的价值判断。",
+            "会议形成三套待选模型：只优化期望成本的风险中性模型；限制最坏情景成本的稳健方案；在目标中加入条件风险价值的风险厌恶方案。三者使用相同基础数据，却会因风险偏好不同给出不同采购量。模型选择本身也是决策的一部分。",
+            "在提交前，顾言要求每个方案同时展示变量定义、目标函数、约束、情景结果和业务解释。若计算结果无法回到库存、加急采购和服务风险，就不能作为课堂中的完整随机规划方案。团队必须决定使用哪一种模型，并说明它愿意承担哪类误差。",
+        ]
+        body["decision_point"] = (
+            "请建立并说明两阶段随机规划模型，计算或比较不同一阶段采购量在三个情景下的结果；随后在风险中性、"
+            "最坏情景约束和风险厌恶方案中作出选择。答案必须明确随机变量、情景概率、决策变量、目标函数、约束条件、"
+            "追索策略及敏感性分析，并说明为什么不能直接用期望需求替代随机模型。"
+        )
+        artifacts = {
+            "scenario_table": [
+                {"scenario": "低需求", "probability": 0.25, "demand": 800},
+                {"scenario": "基准需求", "probability": 0.50, "demand": 1000},
+                {"scenario": "高需求", "probability": 0.25, "demand": 1250},
+            ],
+            "variables": ["x：一阶段基础采购量", "y_s：情景s下加急采购量", "z_s：情景s下剩余处置量"],
+            "objective_function": "min 80x + Σ p_s(118y_s - 35z_s)",
+            "constraints": ["x + y_s - z_s = d_s", "0 ≤ x ≤ 1150", "0 ≤ y_s ≤ 180", "z_s ≥ 0"],
+        }
+        evidence_topics = [
+            ("概率误设", "比较高需求概率变化对最优采购量的影响"),
+            ("追索能力", "检验加急供应上限是否使某些方案不可行"),
+            ("风险偏好", "比较期望值、最坏情景与条件风险价值的决策差异"),
+            ("模型解释", "把数学结果还原为库存、服务水平和成本后果"),
+        ]
+        package["discussion_questions"] = [
+            {"level": "理解", "question": "哪些变量属于一阶段决策，哪些属于情景揭示后的追索决策？", "teaching_intent": "识别两阶段结构"},
+            {"level": "应用", "question": "根据情景表写出目标函数与平衡约束，并解释每一项业务含义。", "teaching_intent": "完成模型表达"},
+            {"level": "分析", "question": "为什么用期望需求替代随机需求可能产生错误决策？", "teaching_intent": "比较确定性与随机模型"},
+            {"level": "评价", "question": "风险中性与风险厌恶方案分别适合什么管理偏好？", "teaching_intent": "评价风险取舍"},
+            {"level": "创造", "question": "若新增供应中断情景，你将如何修改变量、概率和约束？", "teaching_intent": "迁移建模"},
+        ]
+    elif contract_id == "contract_law":
+        body["characters"] = [
+            {"name": "甲辰设备公司", "role": "设备出卖人", "stance": "认为买方迟延验收并应支付尾款"},
+            {"name": "海岳食品公司", "role": "设备买受人", "stance": "认为设备未达到约定产能并要求解除合同"},
+            {"name": "仲裁庭", "role": "中立审理者", "stance": "要求双方分别证明条款含义、履约事实与损失"},
+        ]
+        body["background"] = (
+            "本案例为中国大陆法教学场景，合同、主体和数据均为虚构。2026年3月，甲辰设备公司与海岳食品公司签订自动包装线买卖合同。"
+            "案例不预设裁判结论，教师应结合授课时有效的法律文本确认规则来源，学生需区分合同条款、已确认事实、双方主张与待证事实。"
+        )
+        segments = [
+            "合同第4条约定设备总价480万元，签约后支付30%，到货后支付40%，连续72小时验收合格后支付尾款30%。第7条约定额定产能为每小时2400件，在合同所列原料规格和环境条件下测试。第9条约定买方应在安装完成后五日内组织验收，无正当理由逾期视为完成初步验收。",
+            "第11条规定，一方严重违约导致合同目的不能实现时，守约方可书面催告并在十日整改期届满后解除合同。第12条约定迟延交付违约金按合同总价每日万分之五计算，但没有明确性能不达标时损失如何计算。合同还约定争议提交约定仲裁委员会处理。",
+            "5月8日设备运抵，双方签署到货清单。安装记录显示卖方于5月18日完成机械安装，但控制系统仍有两个报警项。卖方认为报警不影响生产，买方则在工作群中表示必须消除报警后才能开始72小时测试。双方没有对“安装完成”的含义另行签署书面文件。",
+            "5月23日第一次测试使用了买方临时采购的薄膜材料，设备平均产能达到每小时2050件并三次停机。卖方主张薄膜厚度不符合合同附件规定，测试结果不能证明设备缺陷；买方则提交采购记录，认为卖方技术人员此前口头同意使用该批材料。口头同意是否存在及其权限成为待证事实。",
+            "买方于5月25日发出《整改通知》，要求七日内达到每小时2400件，否则解除合同并索赔停产损失。卖方次日回复愿意调试，但要求先按附件规格准备材料并延长测试周期。双方对于通知是否构成第11条约定的催告、整改期应按合同十日还是通知七日计算产生争议。",
+            "6月2日第二次测试达到每小时2360件，连续运行六小时后因传感器故障停机。卖方认为产能误差处于行业允许范围，且愿意免费更换传感器；买方认为合同没有约定误差区间，2360件仍低于明示指标，连续72小时条件也未满足。合同文义、交易目的和履行补救可能支持不同解释。",
+            "6月5日买方向卖方发送解除通知，并拒付剩余尾款。卖方随后停用远程维护账号，主张买方未依约完成五日验收且先行拒付构成违约。买方认为尾款支付条件尚未成就，停用维护又加重设备无法使用的后果。双方的履行顺序和抗辩关系需要逐项分析。",
+            "买方主张因设备未投产造成订单转包差价86万元，并提交与第三方的加工合同；卖方质疑该合同订立时间和损失可预见性，同时主张已支出的安装、差旅和零部件费用。损失是否真实、与违约是否存在因果关系、是否采取合理减损措施，均不能只凭一方陈述确认。",
+            "仲裁庭将材料分为四类：无争议的合同文本和付款记录；双方签字但解释不同的安装与测试记录；仅由单方形成的通知、聊天截图和损失清单；仍需鉴定的设备性能问题。分类的目的，是防止把当事人主张直接写成已经查明的事实。",
+            "双方分别提出请求。买方要求确认解除有效、返还已付款并赔偿转包损失；卖方要求支付尾款、违约金并确认买方解除无效。学生必须为每项请求寻找规则基础、构成要件、支持证据和可能抗辩，不能只凭公平感选择一方。",
+        ]
+        body["decision_point"] = (
+            "请以授课时有效且经教师确认的合同法律规则为依据，识别本案关于验收条件、履行顺序、催告与解除、"
+            "违约责任及损失证明的争议焦点。分别为买卖双方构建“请求—规则—事实—证据—抗辩”论证链，"
+            "再提出继续履行、修理重作、解除合同或损害赔偿的处理方案，并标明仍需查明的事实。"
+        )
+        artifacts = {
+            "jurisdiction": "中国大陆法教学场景；具体规则以教师确认的有效法律文本为准",
+            "clauses": ["第4条：分期付款与尾款条件", "第7条：产能及测试条件", "第9条：验收期限", "第11条：催告与解除", "第12条：违约责任"],
+            "chronology": ["3月签约", "5月8日到货", "5月18日安装记录", "5月23日首次测试", "5月25日整改通知", "6月2日再次测试", "6月5日解除通知"],
+            "legal_issues": ["验收条件是否成就", "解除权是否成立", "双方履行抗辩", "损失与因果关系", "救济方式"],
+        }
+        evidence_topics = [
+            ("条款解释", "比较合同文义、交易目的和履行行为对产能条款的影响"),
+            ("事实证明", "区分双方认可事实、单方主张和需要鉴定的事项"),
+            ("规则适用", "按构成要件逐项连接催告、解除和违约责任证据"),
+            ("救济选择", "比较继续履行、修理、解除与损害赔偿的条件和后果"),
+        ]
+        package["discussion_questions"] = [
+            {"level": "理解", "question": "请按时间线区分无争议事实、双方主张和待证事实。", "teaching_intent": "建立法律事实结构"},
+            {"level": "分析", "question": "产能、验收和尾款条款之间形成怎样的权利义务关系？", "teaching_intent": "解释合同条款"},
+            {"level": "分析", "question": "买方解除通知可能满足或欠缺哪些条件？卖方有哪些抗辩？", "teaching_intent": "形成双向规则适用"},
+            {"level": "评价", "question": "双方损失主张分别需要哪些证据支持？", "teaching_intent": "评价举证与因果关系"},
+            {"level": "创造", "question": "请形成一份包含争点、规则、事实、论证和救济的裁判提纲。", "teaching_intent": "完成法律论证"},
+        ]
+    else:
+        return
+
+    narrative_parts = list(segments)
+    body["narrative"] = "\n\n".join(narrative_parts)
+    minimum = int(task.target_words * 0.98)
+    round_index = 0
+    while count_case_body_chars(package) < minimum:
+        label, use = evidence_topics[round_index % len(evidence_topics)]
+        narrative_parts.append(
+            f"第{round_index + 1}轮证据复核聚焦“{label}”。学生需要{use}，并把结论写入证据表。"
+            "任何判断都必须指出所依据的信息、仍然缺失的材料以及结论改变的触发条件，不能用人物态度替代专业分析。"
+        )
+        body["narrative"] = "\n\n".join(narrative_parts)
+        round_index += 1
+    maximum = int(task.target_words * 1.05)
+    actual = count_case_body_chars(package)
+    if actual > maximum:
+        other = count_case_body_chars({"body": {"background": body["background"], "decision_point": body["decision_point"]}})
+        body["narrative"] = _truncate_visible_chars(body["narrative"], max(task.target_words - other, 900))
+
+    package.setdefault("meta", {})["content_mode"] = "discipline_contract"
+    package["meta"]["course_contract_id"] = contract_id
+    package["case_blueprint"] = blueprint
+    package["discipline_artifacts"] = artifacts
+    package["domain_context"] = {
+        "notes": "；".join(f"{item.get('label')}：{item.get('planned_use')}" for item in blueprint.get("required_elements") or [])
+    }
+    package["instructor_guide"] = {
+        "teaching_flow": build_teaching_flow(int((task.config or {}).get("class_hours") or 2)),
+        "key_points": [item.get("label") for item in blueprint.get("required_elements") or []][:6],
+        "common_misconceptions": list(blueprint.get("forbidden_patterns") or []) or ["使用通用立场冲突替代专业分析"],
+        "extension_reading": [],
+    }
+
+
 def build_structured_package(task: CaseTask, *, domain_notes: str | None = None) -> dict[str, Any]:
     """根据任务参数生成完整 CasePackage（无 LLM 时的高质量结构化产出）。"""
     profile = find_grounded_profile(task)
@@ -405,6 +544,13 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
         },
         "quality": {},
     }
+    approved_blueprint = (task.config or {}).get("approved_blueprint") or {}
+    selected_id, _, exact_contract = select_course_contract({
+        "title": task.title, "subject": task.subject, "course_name": task.course_name,
+        "learning_objectives": task.learning_objectives or [],
+    })
+    if exact_contract and approved_blueprint.get("contract_id") == selected_id:
+        _apply_discipline_contract(package, task, approved_blueprint)
     if domain_notes:
         package["domain_context"] = {"notes": domain_notes.strip()}
     update_body_length_meta(package, task.target_words)
@@ -430,7 +576,10 @@ def merge_agent_output(package: dict[str, Any], agent: str, data: dict[str, Any]
     elif agent == "DomainExpert":
         notes = data.get("domain_notes") or data.get("terminology") or ""
         if notes:
-            package["domain_context"] = {"notes": str(notes).strip()}
+            package["domain_context"] = {
+                "notes": str(notes).strip(),
+                "discipline_checklist": data.get("discipline_checklist") or [],
+            }
         if data.get("characters"):
             package.setdefault("body", {})["characters"] = data["characters"]
     elif agent == "CaseWriter":

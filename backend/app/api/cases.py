@@ -10,6 +10,8 @@ from app.dependencies import get_current_user, get_latest_package, task_to_out
 from app.models import AgentRunLog, CasePackage, CaseTask, ExportRecord, User
 from app.schemas import (
     CaseTaskOut,
+    CaseBlueprintRequest,
+    CaseBlueprintResponse,
     CreateCaseRequest,
     ExportRequest,
     ExportResponse,
@@ -18,9 +20,11 @@ from app.schemas import (
     PptOutlineRequest,
 )
 from app.services.export_service import export_docx, export_pdf
-from app.services.grounded_case_service import generation_preflight_error
+from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
+from app.services.llm_client import llm_available
 from app.services.orchestrator import consume_quota, run_generation
 from app.services.objective_generator import generate_objectives
+from app.services.course_blueprint_service import build_case_blueprint, validate_approved_blueprint
 from app.services.package_builder import normalize_case_package
 from app.services.pptx_export_service import build_ppt_outline, export_pptx, outline_preview
 from app.services.progress_hub import progress_hub
@@ -104,6 +108,15 @@ def suggest_objectives(
     return generate_objectives(body.model_dump())
 
 
+@router.post("/blueprint", response_model=CaseBlueprintResponse)
+def preview_case_blueprint(
+    body: CaseBlueprintRequest,
+    _user: User = Depends(get_current_user),
+):
+    """Build a course-specific blueprint before quota-consuming full generation."""
+    return build_case_blueprint(body.model_dump())
+
+
 @router.get("/{task_id}", response_model=CaseTaskOut)
 def get_case(
     task_id: str,
@@ -124,7 +137,11 @@ def create_case(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # 草稿创建不扣配额；配额在启动 generate 时检查与扣减
+    payload = body.model_dump(exclude={"approved_blueprint"})
+    blueprint_issues = validate_approved_blueprint(payload, body.approved_blueprint)
+    if blueprint_issues:
+        raise HTTPException(400, "；".join(blueprint_issues))
+    # 草稿创建不扣配额；蓝图确认后保存，配额在启动 generate 时检查与扣减
     config = {}
     if body.class_hours:
         config["class_hours"] = body.class_hours
@@ -134,6 +151,7 @@ def create_case(
         brief = body.objective_brief.model_dump()
         if any(str(value).strip() for value in brief.values()):
             config["objective_brief"] = brief
+    config["approved_blueprint"] = body.approved_blueprint
 
     task = CaseTask(
         user_id=user.id,
@@ -173,6 +191,12 @@ async def start_generate(
     preflight_error = generation_preflight_error(task)
     if preflight_error:
         raise HTTPException(400, preflight_error)
+    blueprint = (task.config or {}).get("approved_blueprint") or {}
+    if not llm_available() and not blueprint.get("exact_match") and not find_grounded_profile(task):
+        raise HTTPException(
+            400,
+            "当前未配置大模型，且该课程尚无专用内容契约。系统已停止使用通用故事套壳；请补充课程契约或配置模型后再生成。",
+        )
     if user.quota_remaining is not None and user.quota_remaining <= 0 and task.status == "draft":
         raise HTTPException(400, "生成配额已用尽")
 

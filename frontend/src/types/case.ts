@@ -71,7 +71,7 @@ export interface CasePackage {
     actual_words?: number
     word_count_scope?: string
     fictional_disclaimer?: string
-    content_mode?: 'fictional_teaching_case' | 'source_grounded'
+    content_mode?: 'fictional_teaching_case' | 'source_grounded' | 'discipline_contract'
     source_policy?: string
   }
   learning_objectives: LearningObjective[]
@@ -167,6 +167,32 @@ export interface CreateCasePayload {
   class_hours?: number
   special_requirements?: string
   objective_brief?: ObjectiveBrief
+  approved_blueprint: CaseBlueprint
+}
+
+export interface CaseBlueprintElement {
+  key: string
+  label: string
+  planned_use: string
+  required: boolean
+}
+
+export interface CaseBlueprint {
+  signature: string
+  contract_id: string
+  contract_name: string
+  course_family: string
+  exact_match: boolean
+  case_core: string
+  required_elements: CaseBlueprintElement[]
+  evidence_plan: string[]
+  roles: string[]
+  decision_task: string
+  fact_boundary: string
+  forbidden_patterns: string[]
+  missing_information: string[]
+  authenticity_score: number
+  approved: boolean
 }
 
 export interface ObjectiveBrief {
