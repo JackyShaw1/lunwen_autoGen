@@ -167,25 +167,41 @@ def _add_docx_visual_materials(doc: Document, package: dict) -> None:
 
 def _add_docx_evidence_sources(doc: Document, package: dict) -> None:
     sources = package.get("evidence_sources") or []
-    if not sources:
+    videos = package.get("video_resources") or []
+    if not sources and not videos:
         return
-    doc.add_heading("八、事实来源与引用说明", level=1)
-    intro = doc.add_paragraph("正文中的 [S1]、[S2] 等标记与下列来源一一对应。课堂讲授时应区分公开事实、分析推断与教学任务，不补写未公开数据或人物对话。")
-    for run in intro.runs:
-        _set_run_font(run, "微软雅黑", 9)
-        run.font.color.rgb = RGBColor.from_string("64748B")
-    for source in sources:
-        p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(8)
-        label = p.add_run(f"[{source.get('id', '')}] {source.get('title', '')}\n")
-        _set_run_font(label, "微软雅黑", 10, True)
-        detail = p.add_run(
-            f"{source.get('source_org', '')}"
-            f"{f' · {source.get('published_at')}' if source.get('published_at') else ''}\n"
-            f"用途：{source.get('usage', '')}\n{source.get('source_page_url', '')}"
-        )
-        _set_run_font(detail, "宋体", 9)
-        detail.font.color.rgb = RGBColor.from_string("475569")
+    doc.add_heading("八、事实来源与教学资源", level=1)
+    if sources:
+        doc.add_heading("案例事实来源", level=2)
+        intro = doc.add_paragraph("正文中的 [S1]、[S2] 等标记与下列来源一一对应。课堂讲授时应区分公开事实、分析推断与教学任务，不补写未公开数据或人物对话。")
+        for run in intro.runs:
+            _set_run_font(run, "微软雅黑", 9)
+            run.font.color.rgb = RGBColor.from_string("64748B")
+        for source in sources:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(8)
+            label = p.add_run(f"[{source.get('id', '')}] {source.get('title', '')}\n")
+            _set_run_font(label, "微软雅黑", 10, True)
+            detail = p.add_run(
+                f"{source.get('source_org', '')}"
+                f"{f' · {source.get('published_at')}' if source.get('published_at') else ''}\n"
+                f"用途：{source.get('usage', '')}\n{source.get('source_page_url', '')}"
+            )
+            _set_run_font(detail, "宋体", 9)
+            detail.font.color.rgb = RGBColor.from_string("475569")
+    if videos:
+        doc.add_heading("精选视频资源", level=2)
+        for index, video in enumerate(videos, 1):
+            p = doc.add_paragraph()
+            title_run = p.add_run(f"视频 {index:02d}　{video.get('title', '')}\n")
+            _set_run_font(title_run, "微软雅黑", 10, True)
+            detail = p.add_run(
+                f"{video.get('source_org', '')} · {video.get('duration') or '时长见原页面'}\n"
+                f"教学用途：{video.get('usage', '')}\n"
+                f"{video.get('popularity_note') or ''}\n{video.get('video_url', '')}"
+            )
+            _set_run_font(detail, "宋体", 9)
+            detail.font.color.rgb = RGBColor.from_string("475569")
 
 
 def _configure_docx(doc: Document, course: str) -> None:
@@ -538,8 +554,11 @@ def export_pdf(package: dict, title: str, version: int = 1) -> str:
                 story.append(Paragraph(_pdf_escape(f"•　{item}"), plain_style))
 
     evidence_sources = package.get("evidence_sources") or []
+    video_resources = package.get("video_resources") or []
+    if evidence_sources or video_resources:
+        story.append(Paragraph("八、事实来源与教学资源", h1_style))
     if evidence_sources:
-        story.append(Paragraph("八、事实来源与引用说明", h1_style))
+        story.append(Paragraph("案例事实来源", h2_style))
         story.append(Paragraph("正文中的 [S1]、[S2] 等标记与下列来源一一对应；不得补写未公开数据或人物对话。", tip_style))
         for source in evidence_sources:
             source_text = (
@@ -549,6 +568,16 @@ def export_pdf(package: dict, title: str, version: int = 1) -> str:
                 f"用途：{source.get('usage', '')}<br/>{source.get('source_page_url', '')}"
             )
             story.append(Paragraph(_pdf_escape(source_text).replace("&lt;br/&gt;", "<br/>"), table_style))
+    if video_resources:
+        story.append(Paragraph("精选视频资源", h2_style))
+        for index, video in enumerate(video_resources, 1):
+            text = (
+                f"视频 {index:02d}　{video.get('title', '')}<br/>"
+                f"{video.get('source_org', '')} · {video.get('duration') or '时长见原页面'}<br/>"
+                f"教学用途：{video.get('usage', '')}<br/>"
+                f"{video.get('popularity_note') or ''}<br/>{video.get('video_url', '')}"
+            )
+            story.append(Paragraph(_pdf_escape(text).replace("&lt;br/&gt;", "<br/>"), table_style))
 
     matrix = package.get("alignment_matrix") or []
     if matrix:

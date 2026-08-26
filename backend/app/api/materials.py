@@ -8,6 +8,7 @@ from app.services.material_service import (
     get_official_material,
     search_official_materials,
 )
+from app.services.video_service import search_official_videos
 
 
 router = APIRouter(prefix="/materials", tags=["materials"])
@@ -20,6 +21,15 @@ def search_materials(
     _user: User = Depends(get_current_user),
 ):
     return {"query": q, "items": search_official_materials(q, limit)}
+
+
+@router.get("/videos/search")
+def search_videos(
+    q: str = Query(min_length=2, max_length=200),
+    limit: int = Query(default=10, ge=1, le=20),
+    _user: User = Depends(get_current_user),
+):
+    return {"query": q, "items": search_official_videos(q, limit)}
 
 
 @router.get("/{asset_id}/image")

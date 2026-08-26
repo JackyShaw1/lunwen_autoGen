@@ -17,6 +17,7 @@ from app.services.package_builder import (
     normalize_case_package,
 )
 from app.services.grounded_case_service import generation_preflight_error
+from app.services.video_service import search_official_videos
 from app.services.skill_loader import validate_package_with_skill
 
 
@@ -56,13 +57,25 @@ class GenerationReliabilityTests(unittest.TestCase):
         package = build_structured_package(task)
         visible = "".join(str(package["body"].get(key, "")) for key in ("background", "narrative", "decision_point"))
         self.assertEqual(package["meta"]["content_mode"], "source_grounded")
-        self.assertGreaterEqual(len(package["evidence_sources"]), 2)
+        self.assertEqual(len(package["evidence_sources"]), 10)
+        self.assertEqual(len(package["visual_assets"]), 10)
+        self.assertEqual(len(package["video_resources"]), 10)
         json.dumps(package, ensure_ascii=False)
         self.assertNotIn("某组织", visible)
         self.assertNotIn("陈启明", visible)
         self.assertTrue(2660 <= len(re.sub(r"\s+", "", visible)) <= 2940)
         validation = validate_package_with_skill(package, _task_context(task))
         self.assertTrue(validation["passed"], validation["issues"])
+
+    def test_video_recommendations_are_course_scoped_and_traceable(self) -> None:
+        videos = search_official_videos("系统工程 综合集成方法论 钱学森 中国载人航天", 10)
+        self.assertEqual(len(videos), 10)
+        for video in videos:
+            self.assertTrue(video["source_page_url"].startswith("https://"))
+            self.assertTrue(video["video_url"].startswith("https://"))
+            self.assertEqual(video["trust_level"], "official")
+            self.assertTrue(video["usage"])
+        self.assertEqual(search_official_videos("完全无关的古典音乐赏析课程", 10), [])
 
     def test_strict_factual_case_without_reviewed_profile_stops_before_fabrication(self) -> None:
         task = make_task(1)

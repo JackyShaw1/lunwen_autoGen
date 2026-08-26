@@ -73,8 +73,8 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
         if "教学虚构" in str(meta.get("fictional_disclaimer") or ""):
             issues.append(_issue("error", "fictional_content_forbidden", "教师禁止虚构，但案例仍标记为教学虚构", "meta.fictional_disclaimer"))
         sources = package.get("evidence_sources") or []
-        if len(sources) < 2:
-            issues.append(_issue("error", "insufficient_evidence_sources", "事实案例至少需要两个可追溯权威来源", "evidence_sources"))
+        if len(sources) < 5:
+            issues.append(_issue("error", "insufficient_evidence_sources", "事实案例至少需要5个可追溯权威来源，并以约10项为目标", "evidence_sources"))
         source_ids: set[str] = set()
         for index, source in enumerate(sources):
             source_id = str(source.get("id") or "") if isinstance(source, dict) else ""
@@ -148,8 +148,8 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
             "官方视觉素材缺少课程上下文研究标记，无法确认是否属于当前课程",
             "material_research.context_signature",
         ))
-    if len(visual_assets) > 6:
-        issues.append(_issue("error", "too_many_visual_assets", "官方视觉素材最多选择 6 张", "visual_assets"))
+    if len(visual_assets) > 10:
+        issues.append(_issue("error", "too_many_visual_assets", "官方视觉素材最多选择 10 张", "visual_assets"))
     asset_ids: set[str] = set()
     for index, asset in enumerate(visual_assets):
         path = f"visual_assets.{index}"
@@ -167,6 +167,41 @@ def validate_case_package(package: dict[str, Any], task_context: dict[str, Any])
             issues.append(_issue("error", "unsafe_visual_source", "视觉素材原始页面必须使用 HTTPS 官方地址", f"{path}.source_page_url"))
         if asset.get("official") is not True:
             issues.append(_issue("error", "unverified_visual_source", "视觉素材尚未标记为审核过的官方来源", path))
+
+    videos = package.get("video_resources") or []
+    if len(videos) > 10:
+        issues.append(_issue("error", "too_many_video_resources", "视频资源最多推荐 10 项", "video_resources"))
+    video_ids: set[str] = set()
+    for index, video in enumerate(videos):
+        path = f"video_resources.{index}"
+        if not isinstance(video, dict):
+            issues.append(_issue("error", "invalid_video_resource", "视频资源结构无效", path))
+            continue
+        video_id = str(video.get("id") or "").strip()
+        if not video_id or video_id in video_ids:
+            issues.append(_issue("error", "duplicate_video_resource", "视频资源 ID 缺失或重复", path))
+        video_ids.add(video_id)
+        required = ("title", "source_org", "source_page_url", "video_url", "usage", "trust_level")
+        if not all(str(video.get(key) or "").strip() for key in required):
+            issues.append(_issue("error", "incomplete_video_provenance", "视频缺少标题、机构、来源页、播放地址、用途或可信等级", path))
+        if not str(video.get("source_page_url") or "").startswith("https://") or not str(video.get("video_url") or "").startswith("https://"):
+            issues.append(_issue("error", "unsafe_video_source", "视频来源页和播放地址必须使用 HTTPS", path))
+        if str(video.get("trust_level") or "") not in {"official", "trusted"}:
+            issues.append(_issue("error", "untrusted_video_source", "视频必须来自官方或已审核高可信来源", path))
+
+    targets = package.get("resource_targets") or {}
+    for key, actual, label in (
+        ("evidence_sources", len(package.get("evidence_sources") or []), "案例事实来源"),
+        ("official_visuals", len(visual_assets), "官方视觉素材"),
+        ("videos", len(videos), "视频资源"),
+    ):
+        target = int(targets.get(key) or 0)
+        if target and actual < max(target - 2, 1):
+            issues.append(_issue(
+                "warning", "resource_target_shortfall",
+                f"{label}当前 {actual} 项，目标约 {target} 项；应继续补充可信来源，但不得用无关内容凑数",
+                key,
+            ))
 
     quality = package.get("quality") or {}
     scores = quality.get("rubric_scores") or {}

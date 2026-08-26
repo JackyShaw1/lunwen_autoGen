@@ -1,0 +1,123 @@
+- id: cas-social-governance-systems-engineering
+  title: 新时代系统工程大讲堂：提升社会治理能力的系统工程
+  source_org: 中国系统工程学会 / 中国科学院系统科学研究所
+  source_page_url: https://iss.amss.cas.cn/gb2019/xw/zhxw/202306/t20230626_638006.html
+  video_url: https://www.bilibili.com/video/BV1Zs4y1i7h3/
+  published_at: "2023-06-09"
+  duration: 完整讲座
+  usage: 观察综合集成方法如何用于社会安全预警、人机融合复杂系统和社会治理实践。
+  popularity_note: 官方活动页披露直播观看量累计超过1.7万人次。
+  course_tags: [系统工程, 综合集成方法论, 开放复杂巨系统, 钱学森]
+  keywords: [社会治理, 综合集成, 人机融合, 系统工程大讲堂, 复杂系统]
+  trust_level: official
+
+- id: cas-value-chain-systems-engineering
+  title: 新时代系统工程大讲堂：提升价值链水平的系统工程
+  source_org: 中国科学院系统科学研究所
+  source_page_url: https://iss.amss.cas.cn/gb2019/xw/spxw/index_3.html
+  video_url: https://www.bilibili.com/video/BV1DZ4y1k7gy
+  published_at: "2022"
+  duration: 完整讲座
+  usage: 用于迁移讨论系统边界、价值链协同与跨主体综合决策。
+  course_tags: [系统工程, 综合集成方法论, 管理系统工程]
+  keywords: [价值链, 系统边界, 综合决策, 系统工程大讲堂]
+  trust_level: official
+
+- id: cas-carbon-systems-engineering
+  title: 新时代系统工程大讲堂：实现双碳目标的系统工程
+  source_org: 中国科学院系统科学研究所
+  source_page_url: https://iss.amss.cas.cn/gb2019/xw/spxw/index_3.html
+  video_url: https://www.bilibili.com/video/BV12T4y1y7vA
+  published_at: "2022-01-27"
+  duration: 完整讲座
+  usage: 以双碳目标展示多目标、多主体和长期反馈约束下的系统工程思考。
+  course_tags: [系统工程, 综合集成方法论, 管理系统工程]
+  keywords: [双碳, 多目标, 反馈, 系统工程大讲堂]
+  trust_level: official
+
+- id: cas-qian-systems-view-forum-1
+  title: 新时代的系统观——纪念钱学森诞辰110周年高端论坛（上）
+  source_org: 中国科学院系统科学研究所
+  source_page_url: https://iss.amss.cas.cn/gb2019/xw/spxw/index_3.html
+  video_url: https://www.bilibili.com/video/BV1i3411x7Mh
+  published_at: "2021-12-14"
+  duration: 完整论坛（上）
+  usage: 了解钱学森系统科学思想、学术脉络及新时代系统观。
+  course_tags: [系统工程, 综合集成方法论, 开放复杂巨系统, 钱学森]
+  keywords: [钱学森, 系统观, 系统科学, 高端论坛]
+  trust_level: official
+
+- id: cas-qian-systems-view-forum-2
+  title: 新时代的系统观——纪念钱学森诞辰110周年高端论坛（下）
+  source_org: 中国科学院系统科学研究所
+  source_page_url: https://iss.amss.cas.cn/gb2019/xw/spxw/index_3.html
+  video_url: https://www.bilibili.com/video/BV1BL4y1J7Le
+  published_at: "2021-12-15"
+  duration: 完整论坛（下）
+  usage: 延伸理解系统科学、综合集成与国家重大需求之间的关系。
+  course_tags: [系统工程, 综合集成方法论, 开放复杂巨系统, 钱学森]
+  keywords: [钱学森, 综合集成, 系统科学, 高端论坛]
+  trust_level: official
+
+- id: cctv-tiangong-construction-1
+  title: 纪录片《天宫建造》第1集
+  source_org: 央视网
+  source_page_url: https://tv.cctv.com/2025/01/21/VIDEc0lUkLbyXWHMBZvKQ9LI250121.shtml
+  video_url: https://tv.cctv.com/2025/01/21/VIDEc0lUkLbyXWHMBZvKQ9LI250121.shtml
+  published_at: "2025-01-21"
+  duration: 纪录片单集
+  usage: 通过真实工程影像观察空间站总体目标、系统建造和跨组织协同。
+  popularity_note: 央视纪录片栏目正式节目。
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站]
+  keywords: [天宫建造, 三步走, 空间站, 工程协同]
+  trust_level: official
+
+- id: cctv-tiangong-expedition
+  title: 纪录片《天宫出征》
+  source_org: 央视网
+  source_page_url: https://tv.cctv.com/2012/12/15/VIDA1355568504021866.shtml
+  video_url: https://tv.cctv.com/2012/12/15/VIDA1355568504021866.shtml
+  published_at: "2012-12-15"
+  duration: 2集
+  usage: 回顾天宫一号任务，理解载人航天“三步走”中阶段目标与能力验证的关系。
+  popularity_note: 央视纪录片栏目正式节目。
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站]
+  keywords: [天宫一号, 三步走, 阶段验证, 载人航天]
+  trust_level: official
+
+- id: cctv-tiangong-journey
+  title: 《太空新旅 天宫启程》
+  source_org: 央视网
+  source_page_url: https://tv.cctv.com/v/v1/VIDELvpihW0QNciYK1R49ZNA110929.html
+  video_url: https://tv.cctv.com/v/v1/VIDELvpihW0QNciYK1R49ZNA110929.html
+  published_at: "2011-09-29"
+  duration: 专题节目
+  usage: 用测控、空间环境和交会对接内容分析复杂工程中的环境约束与系统接口。
+  popularity_note: 央视专题节目。
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站]
+  keywords: [测控, 空间环境, 交会对接, 系统接口]
+  trust_level: official
+
+- id: cmse-in-orbit-work
+  title: 天宫TV：在轨工作，忙碌充实！
+  source_org: 中国载人航天工程网
+  source_page_url: https://www.cmse.gov.cn/dmt/dhhsp/202608/t20260814_57735.html
+  video_url: https://www.cmse.gov.cn/dmt/dhhsp/202608/t20260814_57735.html
+  published_at: "2026-08-14"
+  duration: 短视频
+  usage: 展示空间站实际运行活动，帮助学生从建造阶段迁移到长期运营反馈。
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站]
+  keywords: [在轨运行, 航天员, 运营反馈, 天宫TV]
+  trust_level: official
+
+- id: cmse-orbit-experiments
+  title: 天宫TV：在轨实验清单，更新！
+  source_org: 中国载人航天工程网
+  source_page_url: https://www.cmse.gov.cn/dmt/dhhsp/202608/t20260814_57733.html
+  video_url: https://www.cmse.gov.cn/dmt/dhhsp/202608/t20260814_57733.html
+  published_at: "2026-08-14"
+  duration: 短视频
+  usage: 观察国家太空实验室的任务更新，用于讨论系统价值、载荷需求与运行资源配置。
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站]
+  keywords: [在轨实验, 空间应用, 资源配置, 天宫TV]
+  trust_level: official

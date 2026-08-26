@@ -252,6 +252,8 @@ limits:
 
 事实型案例不得仅依靠 Prompt 自律。编排器先执行真实性预检；命中审核资料包后，CasePlanner 保留教师原始要求，DomainExpert 声明事实边界，CaseWriter 仅组织已审核事实，Reviewer 检查正文引用与来源表。没有课程级资料包时直接停止，不调用通用虚构模板。
 
+五个 Agent 共同遵守全局资源规范：事实来源、已选官方视觉素材、推荐官方视觉素材和可信视频均以约 10 项为目标。Planner 把资源用于蓝图，DomainExpert 审核课程相关性，Writer 只引用已审核来源，PedagogyDesigner 指定课堂使用方式，Reviewer 检查数量缺口与来源完整性。可信资源不足允许少于目标，但禁止编造链接、播放量或跨课程凑数。
+
 每次生成会把 Agent 对应的 Skill 名称、修订号和所选参考资料写入 `meta.skill_trace`，方便追溯线上案例使用了哪套方法。
 
 ---

@@ -121,7 +121,7 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
     body = package.get("body") or {}
     title = _clean_text(meta.get("title") or "教学案例")
     course = _clean_text(meta.get("course") or meta.get("subject") or "课程教学")
-    materials = resolve_package_materials(package, limit=4 if mode == "visual" else 3)
+    materials = resolve_package_materials(package, limit=10)
     slides: list[dict[str, Any]] = [
         {
             "kind": "cover", "title": title,
@@ -265,6 +265,15 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
             ),
         })
 
+    video_resources = package.get("video_resources") or []
+    for index in range(0, len(video_resources), 4):
+        page_videos = video_resources[index : index + 4]
+        slides.append({
+            "kind": "videos", "section": "拓展资源", "title": "精选课堂视频" if index == 0 else "精选课堂视频 · 续",
+            "items": page_videos,
+            "notes": _speaker_note("视频资源", "按教学目的选择片段，不建议课堂连续播放全部视频。", [item.get("usage", "") for item in page_videos], 2),
+        })
+
     slides.append({
         "kind": "closing", "title": "回到决策现场",
         "content": "请基于案例证据形成判断，说明取舍依据、行动路径与风险应对。",
@@ -281,7 +290,7 @@ def outline_preview(outline: dict[str, Any]) -> dict[str, Any]:
     for index, slide in enumerate(outline["slides"], 1):
         items = slide.get("items") or []
         if items and isinstance(items[0], dict):
-            summary = "；".join(_clean_text(item.get("question") or item.get("name") or item.get("objective_id") or item.get("value") or item.get("label")) for item in items[:2])
+            summary = "；".join(_clean_text(item.get("question") or item.get("title") or item.get("name") or item.get("objective_id") or item.get("value") or item.get("label")) for item in items[:2])
         elif items:
             summary = "；".join(_clean_text(item) for item in items[:2])
         else:
@@ -613,6 +622,18 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
                 link = _textbox(slide, "官网原文 ↗", 11.38, y + 0.58, 0.75, 0.24, size=8, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
                 if source.get("source_page_url"):
                     link.click_action.hyperlink.address = source["source_page_url"]
+        elif kind == "videos":
+            for index, video in enumerate(spec.get("items") or []):
+                y = 1.52 + index * 1.3
+                _shape(slide, 0.72, y, 11.82, 1.08, palette["surface"], line="D9E2E7")
+                _shape(slide, 0.98, y + 0.22, 0.55, 0.55, palette["accent"])
+                _textbox(slide, "▶", 1.07, y + 0.35, 0.36, 0.2, size=10, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER)
+                _textbox(slide, _clean_text(video.get("title")), 1.72, y + 0.12, 7.85, 0.36, size=14, color=palette["text"], bold=True)
+                _textbox(slide, _clean_text(video.get("source_org")), 9.5, y + 0.15, 2.55, 0.26, size=9, color=palette["muted"], align=PP_ALIGN.RIGHT)
+                _textbox(slide, _clean_text(video.get("usage")), 1.72, y + 0.58, 9.45, 0.27, size=9, color=palette["muted"])
+                link = _textbox(slide, "播放 ↗", 11.28, y + 0.58, 0.75, 0.22, size=8, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
+                if video.get("video_url"):
+                    link.click_action.hyperlink.address = video["video_url"]
         elif kind == "closing":
             _shape(slide, 0.72, 1.8, 11.82, 3.7, palette["primary"], radius=True)
             _textbox(slide, spec.get("content", ""), 1.2, 2.34, 10.85, 1.55, size=27, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER, valign=MSO_ANCHOR.MIDDLE)

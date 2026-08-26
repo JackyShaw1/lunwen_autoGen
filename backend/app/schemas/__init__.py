@@ -226,6 +226,20 @@ class EvidenceSource(BaseModel):
     usage: str
 
 
+class VideoResource(BaseModel):
+    id: str
+    title: str
+    source_org: str
+    source_page_url: str
+    video_url: str
+    published_at: str | None = None
+    duration: str | None = None
+    usage: str
+    popularity_note: str | None = None
+    trust_level: str = "official"
+    match_reasons: list[str] = []
+
+
 class CasePackageSchema(BaseModel):
     meta: CaseMeta
     learning_objectives: list[LearningObjective]
@@ -237,5 +251,7 @@ class CasePackageSchema(BaseModel):
     material_research: dict[str, Any] | None = None
     teacher_requirements: dict[str, Any] | None = None
     evidence_sources: list[EvidenceSource] = []
+    video_resources: list[VideoResource] = []
+    resource_targets: dict[str, Any] | None = None
     course_ideology: dict[str, Any] | None = None
     quality: CaseQuality | None = None

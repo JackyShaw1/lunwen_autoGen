@@ -26,6 +26,7 @@ from app.services.pptx_export_service import build_ppt_outline, export_pptx, out
 from app.services.progress_hub import progress_hub
 from app.services.skill_loader import validate_package_with_skill
 from app.services.material_service import material_context_signature, recommended_materials
+from app.services.video_service import recommended_videos
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -54,15 +55,14 @@ def _hydrate_official_materials(package: dict, task: CaseTask) -> None:
     research = package.get("material_research") or {}
     if research.get("context_signature") != signature:
         query = f"{task.title} {task.subject} {task.course_name} {task.case_type}"
-        package["visual_assets"] = recommended_materials(
-            query,
-            limit=3,
-        )
+        package["visual_assets"] = recommended_materials(query, limit=10)
+        package["video_resources"] = recommended_videos(query, limit=10)
         package["material_research"] = {
             "context_signature": signature,
             "query": query,
             "strategy": "course_scoped_official_catalog",
             "matched_count": len(package["visual_assets"]),
+            "video_count": len(package["video_resources"]),
         }
 
 

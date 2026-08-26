@@ -196,3 +196,81 @@
   course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
   keywords: [系统方案, 空间站, 三舱, 载人飞船, 货运飞船, 系统边界, 闭环反馈]
   rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-tianhe-ground-test
+  title: 天和核心舱地面研制现场
+  caption: 核心舱在地面总装状态下接受研制与验证，适合讨论总体要求如何传递到舱段、设备和接口。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340387609125.png
+  published_at: "2023-01-17"
+  photographer: 中国载人航天工程网
+  section_hint: 分系统研制
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [天和核心舱, 总装, 详细设计, 分系统, 接口]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-space-station-thermal-test
+  title: 空间站舱段真空热试验
+  caption: 舱段在大型空间环境模拟设备中开展热试验，用于说明模型判断必须经地面试验数据校核。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340374697927.png
+  published_at: "2023-01-17"
+  photographer: 中国载人航天工程网
+  section_hint: 环境验证
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [真空热试验, 空间环境, 模型校核, 试验验证, 反馈]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-three-module-joint-test
+  title: 天宫空间站三舱联试现场
+  caption: 天和、问天、梦天舱段在地面组成联试状态，直观呈现接口匹配、功能融合和组合体程序验证。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340362917638.png
+  published_at: "2023-01-17"
+  photographer: 中国载人航天工程网
+  section_hint: 集成验证
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [三舱联试, 接口匹配, 功能融合, 组合体, 集成验证]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-module-rendezvous-test
+  title: 空间站舱段对接与转位专项试验
+  caption: 多工位试验画面展示舱段接口与转位机构验证过程，可用于识别集成前必须关闭的接口风险。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340353889895.png
+  published_at: "2023-01-17"
+  photographer: 中国载人航天工程网
+  section_hint: 接口风险
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [舱段对接, 转位机构, 专项试验, 接口风险, 方案验证]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-space-station-assembly-sequence
+  title: 天宫空间站在轨组装顺序示意
+  caption: 从核心舱到两实验舱转位形成T字构型的过程，适合分析阶段能力、状态转换和反馈决策。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340341411793.png
+  published_at: "2023-01-17"
+  photographer: 中国载人航天工程网
+  section_hint: 阶段路径
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [在轨组装, 转位, 状态转换, 阶段能力, 反馈决策]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。
+
+- id: cmse-space-station-in-orbit
+  title: 天宫空间站在轨完整构型
+  caption: 建成后的空间站组合体展示阶段成果，可用于复盘从总体论证、分系统研制到集成验证的完整闭环。
+  source_org: 中国载人航天工程网
+  source_page_url: https://statistics.cmse.gov.cn/xwzx/202301/t20230117_52275.html
+  image_url: https://statistics.cmse.gov.cn/xwzx/202301/W020230117340333440088.jpg
+  published_at: "2023-01-17"
+  photographer: 中国载人航天工程网
+  section_hint: 成果复盘
+  course_tags: [系统工程, 综合集成方法论, 中国载人航天, 天宫空间站, 钱学森]
+  keywords: [空间站组合体, 完整构型, 总体论证, 集成验证, 闭环]
+  rights_notice: 来源为中国载人航天工程官方公开页面，仅用于课堂教学引用；版权归原机构，公开传播或商业再利用前请确认授权。

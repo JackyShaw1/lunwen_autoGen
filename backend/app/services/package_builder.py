@@ -10,6 +10,10 @@ from app.models import CaseTask
 from app.services.rubric_service import score_package
 from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
 from app.services.material_service import get_official_material, material_context_signature, recommended_materials
+from app.services.video_service import recommended_videos
+
+
+RESOURCE_TARGET_COUNT = 10
 
 
 def count_case_body_chars(package: dict[str, Any]) -> int:
@@ -211,6 +215,7 @@ def _build_grounded_package(task: CaseTask, profile: dict[str, Any]) -> dict[str
         if (asset := get_official_material(str(asset_id))) is not None
     ]
     material_query = f"{title} {subject} {course} {task.case_type}"
+    videos = recommended_videos(material_query, limit=RESOURCE_TARGET_COUNT)
     package: dict[str, Any] = {
         "meta": {
             "title": title,
@@ -250,6 +255,14 @@ def _build_grounded_package(task: CaseTask, profile: dict[str, Any]) -> dict[str
             for objective in learning_objectives
         ],
         "evidence_sources": sources,
+        "video_resources": videos,
+        "resource_targets": {
+            "evidence_sources": RESOURCE_TARGET_COUNT,
+            "official_visuals": RESOURCE_TARGET_COUNT,
+            "recommended_visuals": RESOURCE_TARGET_COUNT,
+            "videos": RESOURCE_TARGET_COUNT,
+            "policy": "优先官方或高可信来源；数量不足时留空并提示，不以无关或不可核验内容凑数",
+        },
         "course_ideology": deepcopy(profile.get("course_ideology") or {}),
         "visual_assets": assets,
         "material_research": {
@@ -287,7 +300,8 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
         {"name": "赵磊", "role": "一线代表", "stance": "担忧节奏与资源不足"},
     ]
     material_query = f"{title} {subject} {course} {task.case_type}"
-    visual_assets = recommended_materials(material_query, limit=3)
+    visual_assets = recommended_materials(material_query, limit=RESOURCE_TARGET_COUNT)
+    video_resources = recommended_videos(material_query, limit=RESOURCE_TARGET_COUNT)
 
     package: dict[str, Any] = {
         "meta": {
@@ -374,6 +388,15 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
             for i, lo in enumerate(lo_items)
         ],
         "visual_assets": visual_assets,
+        "evidence_sources": [],
+        "video_resources": video_resources,
+        "resource_targets": {
+            "evidence_sources": RESOURCE_TARGET_COUNT,
+            "official_visuals": RESOURCE_TARGET_COUNT,
+            "recommended_visuals": RESOURCE_TARGET_COUNT,
+            "videos": RESOURCE_TARGET_COUNT,
+            "policy": "优先官方或高可信来源；数量不足时留空并提示，不以无关或不可核验内容凑数",
+        },
         "material_research": {
             "context_signature": material_context_signature(title, subject, course, task.case_type),
             "query": material_query,

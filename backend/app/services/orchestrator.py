@@ -84,6 +84,9 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
     base = (
         f"教师任务参数：\n{yaml.safe_dump(ctx, allow_unicode=True)}\n"
         f"当前案例包草稿（JSON）：\n{yaml.safe_dump(package, allow_unicode=True)}\n"
+        "全局资源规范：案例事实来源、官方视觉素材、推荐视觉素材和视频资源均以约10项为目标；"
+        "只使用与当前课程强相关的政府、科研院所、权威出版物、权威媒体或已审核机构来源。"
+        "数量不足时保留缺口，禁止编造链接、播放量或用无关资源凑数。\n"
     )
     specs = {
         "CasePlanner": (

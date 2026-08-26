@@ -1,4 +1,4 @@
-import type { CaseTask, CasePackage, DashboardStats, CreateCasePayload, StatsRange, VisualAsset } from '@/types/case'
+import type { CaseTask, CasePackage, DashboardStats, CreateCasePayload, StatsRange, VideoResource, VisualAsset } from '@/types/case'
 import { api } from '@/lib/api-client'
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
@@ -117,6 +117,11 @@ export async function saveCasePackage(caseId: string, packageData: CasePackage) 
 
 export async function searchOfficialMaterials(query: string): Promise<VisualAsset[]> {
   const { data } = await api.get<{ items: VisualAsset[] }>('/materials/search', { params: { q: query, limit: 12 } })
+  return data.items
+}
+
+export async function searchOfficialVideos(query: string): Promise<VideoResource[]> {
+  const { data } = await api.get<{ items: VideoResource[] }>('/materials/videos/search', { params: { q: query, limit: 10 } })
   return data.items
 }
 

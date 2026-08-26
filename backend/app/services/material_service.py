@@ -104,7 +104,7 @@ def search_official_materials(query: str, limit: int = 12) -> list[dict[str, Any
     return [dict(asset) for _, asset in ranked[: max(1, min(limit, 30))]]
 
 
-def recommended_materials(context: str, limit: int = 3) -> list[dict[str, Any]]:
+def recommended_materials(context: str, limit: int = 10) -> list[dict[str, Any]]:
     return search_official_materials(context, limit=limit)
 
 
@@ -157,7 +157,7 @@ def get_cached_material_image(asset_id: str) -> Path:
     return path
 
 
-def resolve_package_materials(package: dict[str, Any], limit: int = 6) -> list[dict[str, Any]]:
+def resolve_package_materials(package: dict[str, Any], limit: int = 10) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for selected in package.get("visual_assets") or []:

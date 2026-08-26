@@ -46,6 +46,20 @@ export interface VisualAsset {
   match_reasons?: string[]
 }
 
+export interface VideoResource {
+  id: string
+  title: string
+  source_org: string
+  source_page_url: string
+  video_url: string
+  published_at?: string
+  duration?: string
+  usage: string
+  popularity_note?: string
+  trust_level: 'official' | 'trusted'
+  match_reasons?: string[]
+}
+
 export interface CasePackage {
   meta: {
     title: string
@@ -102,6 +116,14 @@ export interface CasePackage {
     published_at?: string
     usage: string
   }>
+  video_resources?: VideoResource[]
+  resource_targets?: {
+    evidence_sources?: number
+    official_visuals?: number
+    recommended_visuals?: number
+    videos?: number
+    policy?: string
+  }
   course_ideology?: {
     figure?: string
     themes?: string[]

@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Textarea } from '@/components/ui/Input'
-import { fetchCasePackage, saveCasePackage, searchOfficialMaterials } from '@/features/cases/api'
+import { fetchCasePackage, saveCasePackage, searchOfficialMaterials, searchOfficialVideos } from '@/features/cases/api'
 import type { CasePackage, VisualAsset } from '@/types/case'
 import { cn } from '@/lib/utils'
-import { BookOpenText, Clock3, ExternalLink, Image as ImageIcon, Presentation, Quote, RefreshCw, Search, ShieldCheck, Users, X } from 'lucide-react'
+import { BookOpenText, Clock3, ExternalLink, Film, Image as ImageIcon, PlayCircle, Presentation, Quote, RefreshCw, Search, ShieldCheck, TrendingUp, Users, X } from 'lucide-react'
 
 const TABS = [
   { id: 'body', label: '案例正文' },
@@ -16,6 +16,7 @@ const TABS = [
   { id: 'guide', label: '教师参考' },
   { id: 'alignment', label: '目标对齐' },
   { id: 'materials', label: '官方素材' },
+  { id: 'videos', label: '视频资源' },
 ] as const
 
 function splitReadingParagraphs(text?: string) {
@@ -81,6 +82,12 @@ export default function CaseDetail() {
     enabled: tab === 'materials' && effectiveMaterialQuery.length >= 2,
     staleTime: 10 * 60 * 1000,
   })
+  const { data: videoResults = [], isFetching: videosLoading } = useQuery({
+    queryKey: ['official-videos', effectiveMaterialQuery],
+    queryFn: () => searchOfficialVideos(effectiveMaterialQuery),
+    enabled: tab === 'videos' && effectiveMaterialQuery.length >= 2,
+    staleTime: 10 * 60 * 1000,
+  })
 
   if (isLoading) return <div className="text-gray-500">加载案例…</div>
   if (error || !pkg) {
@@ -113,7 +120,7 @@ export default function CaseDetail() {
     if (!draft) return
     const current = draft.visual_assets || []
     if (current.some((item) => item.id === asset.id)) return
-    setDraft({ ...draft, visual_assets: [...current, asset].slice(0, 6) })
+    setDraft({ ...draft, visual_assets: [...current, asset].slice(0, 10) })
   }
 
   const removeMaterial = (assetId: string) => {
@@ -392,7 +399,7 @@ export default function CaseDetail() {
 
             {!!view.visual_assets?.length && (
               <section>
-                <div className="mb-3 flex items-center justify-between"><h3 className="font-bold text-slate-900">已选入案例 · {view.visual_assets.length}/6</h3><span className="text-xs text-slate-500">会同步进入 Word、PDF 与 PPTX</span></div>
+                <div className="mb-3 flex items-center justify-between"><h3 className="font-bold text-slate-900">已选入案例 · {view.visual_assets.length}/10</h3><span className="text-xs text-slate-500">会同步进入 Word、PDF 与 PPTX</span></div>
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {view.visual_assets.map((asset) => (
                     <article key={asset.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -431,7 +438,7 @@ export default function CaseDetail() {
                         {!!asset.match_reasons?.length && <div className="mt-3 flex flex-wrap gap-1.5">{asset.match_reasons.map((reason) => <span key={reason} className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">匹配：{reason}</span>)}</div>}
                         <p className="mt-3 text-xs text-slate-500">来源：{asset.source_org}</p>
                         <div className="mt-4 flex gap-2">
-                          <Button size="sm" disabled={!editing || selected || (view.visual_assets?.length || 0) >= 6} onClick={() => addMaterial(asset)}>{selected ? '已选入' : editing ? '加入案例' : '先点击编辑素材'}</Button>
+                          <Button size="sm" disabled={!editing || selected || (view.visual_assets?.length || 0) >= 10} onClick={() => addMaterial(asset)}>{selected ? '已选入' : editing ? '加入案例' : '先点击编辑素材'}</Button>
                           <a href={asset.source_page_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 text-xs font-semibold text-primary">官网<ExternalLink size={12} /></a>
                         </div>
                       </div>
@@ -440,6 +447,29 @@ export default function CaseDetail() {
                 </div>
               )}
             </section>
+          </div>
+        )}
+
+        {tab === 'videos' && (
+          <div className="mx-auto max-w-6xl space-y-6">
+            <section className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 md:p-6">
+              <div className="flex items-center gap-2 text-sm font-bold text-violet-800"><Film size={18} />可信视频资源</div>
+              <h2 className="mt-2 text-xl font-bold text-slate-950">为“{view.meta.title}”匹配约 10 项课堂视频</h2>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">优先收录政府、科研院所、权威媒体和官方机构账号发布的视频。热度只在来源能够核验时展示，不根据标题或平台印象虚构播放量；资源不足时宁可少于 10 项。</p>
+            </section>
+            {videosLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">正在匹配课程视频…</div> : (
+              <section className="grid gap-4 md:grid-cols-2">
+                {(view.video_resources?.length ? view.video_resources : videoResults).map((video, index) => (
+                  <article key={video.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700"><PlayCircle size={23} /></div><div className="min-w-0"><div className="text-xs font-bold text-violet-700">视频 {String(index + 1).padStart(2, '0')} · {video.duration || '时长见原页面'}</div><h3 className="mt-1 font-bold leading-6 text-slate-900">{video.title}</h3><p className="mt-1 text-xs text-slate-500">{video.source_org}{video.published_at ? ` · ${video.published_at}` : ''}</p></div></div>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">教学用途：{video.usage}</p>
+                    {video.popularity_note && <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800"><TrendingUp size={14} className="mt-0.5 shrink-0" />{video.popularity_note}</div>}
+                    <div className="mt-4 flex flex-wrap gap-3"><a href={video.video_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-bold text-violet-700 hover:underline">播放视频<ExternalLink size={13} /></a><a href={video.source_page_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:underline">核验来源<ShieldCheck size={13} /></a></div>
+                  </article>
+                ))}
+                {!view.video_resources?.length && videoResults.length === 0 && <div className="col-span-full rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500">当前课程暂无足够的可信视频。系统不会使用标题相似但来源不明的视频补位。</div>}
+              </section>
+            )}
           </div>
         )}
       </Card>
