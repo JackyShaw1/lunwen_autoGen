@@ -11,9 +11,10 @@ from typing import Any
 import yaml
 from sqlalchemy.orm import Session
 
-from app.config import get_settings, settings
+from app.config import settings
 from app.models import AgentConfig, AgentRunLog, CasePackage, CaseTask, User
 from app.services.llm_client import chat_completion, extract_json, llm_available
+from app.services.runtime_model_service import get_active_model_config
 from app.services.package_builder import (
     build_structured_package,
     count_case_body_chars,
@@ -295,7 +296,7 @@ async def _run_agent_llm(
     if agent == "CaseWriter":
         max_tokens = max(max_tokens, min(16000, task.target_words * 2 + 2000))
     configured_model = str(model_cfg.get("name") or "").strip()
-    use_model = settings.openai_model if configured_model in ("", "inherit") else configured_model
+    use_model = get_active_model_config(db).model if configured_model in ("", "inherit") else configured_model
     content = await chat_completion(
         messages,
         temperature=float(model_cfg.get("temperature", 0.7)),
@@ -367,7 +368,7 @@ async def _repair_casewriter_length(
         system = cfg.get("system_prompt") or AGENT_HINTS["CaseWriter"]
         model_cfg = cfg.get("model") or {}
         configured_model = str(model_cfg.get("name") or "").strip()
-        use_model = settings.openai_model if configured_model in ("", "inherit") else configured_model
+        use_model = get_active_model_config(db).model if configured_model in ("", "inherit") else configured_model
         content = await chat_completion(
             [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             temperature=0.65,
@@ -712,7 +713,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         "generation mode task=%s use_llm=%s model=%s",
         task_id,
         use_llm,
-        get_settings().openai_model if use_llm else "mock",
+        get_active_model_config(db).model if use_llm else "mock",
     )
     agents = list(AGENT_SEQUENCE)
 

@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from app.config import get_settings
+from app.services.runtime_model_service import get_active_model_config
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +19,15 @@ DeltaCallback = Callable[[str, str], Awaitable[None]]  # (accumulated, delta)
 
 
 def llm_available() -> bool:
-    s = get_settings()
-    ok = bool(s.openai_api_key.strip()) and (not s.use_mock_generation)
+    config = get_active_model_config()
+    ok = config.available
     logger.info(
         "llm_available=%s mock=%s key_set=%s model=%s base=%s",
         ok,
-        s.use_mock_generation,
-        bool(s.openai_api_key.strip()),
-        s.openai_model,
-        s.openai_api_base,
+        not config.enabled,
+        bool(config.api_key),
+        config.model,
+        config.api_base,
     )
     return ok
 
@@ -55,13 +55,13 @@ async def chat_completion(
             # 告知前端进入非流式等待
             await on_delta("（流式不可用，改为整段生成，请稍候…）\n", "")
 
-    s = get_settings()
-    if not s.openai_api_key:
-        raise RuntimeError("未配置 OPENAI_API_KEY")
+    config = get_active_model_config()
+    if not config.available:
+        raise RuntimeError("大模型尚未启用或配置不完整")
 
-    base = s.openai_api_base.rstrip("/")
+    base = config.api_base.rstrip("/")
     url = f"{base}/chat/completions"
-    use_model = model or s.openai_model
+    use_model = model or config.model
     payload = {
         "model": use_model,
         "messages": messages,
@@ -69,7 +69,7 @@ async def chat_completion(
         "max_tokens": max_tokens,
     }
     headers = {
-        "Authorization": f"Bearer {s.openai_api_key}",
+        "Authorization": f"Bearer {config.api_key}",
         "Content-Type": "application/json",
     }
     logger.info("LLM request model=%s url=%s", use_model, url)
@@ -104,13 +104,13 @@ async def chat_completion_stream(
     on_delta: DeltaCallback | None = None,
 ) -> str:
     """SSE 流式调用；边生成边回调累积文本。"""
-    s = get_settings()
-    if not s.openai_api_key:
-        raise RuntimeError("未配置 OPENAI_API_KEY")
+    config = get_active_model_config()
+    if not config.available:
+        raise RuntimeError("大模型尚未启用或配置不完整")
 
-    base = s.openai_api_base.rstrip("/")
+    base = config.api_base.rstrip("/")
     url = f"{base}/chat/completions"
-    use_model = model or s.openai_model
+    use_model = model or config.model
     payload = {
         "model": use_model,
         "messages": messages,
@@ -119,7 +119,7 @@ async def chat_completion_stream(
         "stream": True,
     }
     headers = {
-        "Authorization": f"Bearer {s.openai_api_key}",
+        "Authorization": f"Bearer {config.api_key}",
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }

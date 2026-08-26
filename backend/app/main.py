@@ -41,13 +41,15 @@ app.include_router(ws_router)
 @app.get("/api/health")
 def health():
     from app.config import get_settings
+    from app.services.runtime_model_service import get_active_model_config
 
     s = get_settings()
+    model_config = get_active_model_config()
     return {
         "status": "ok",
         "app": s.app_name,
-        "generation_mode": "llm" if (s.openai_api_key and not s.use_mock_generation) else "mock",
-        "model": s.openai_model if s.openai_api_key and not s.use_mock_generation else None,
+        "generation_mode": "llm" if model_config.available else "mock",
+        "model": model_config.model if model_config.available else None,
     }
 
 

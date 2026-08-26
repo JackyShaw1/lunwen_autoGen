@@ -1,3 +1,4 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -5,7 +6,12 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user, load_agent_yaml_files, require_admin
 from app.models import AgentConfig, User
-from app.schemas import AgentConfigOut, AgentConfigUpdate
+from app.schemas import AgentConfigOut, AgentConfigUpdate, ModelConfigOut, ModelConfigUpdate
+from app.services.runtime_model_service import (
+    get_active_model_config,
+    get_masked_model_config,
+    save_model_config,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -16,6 +22,64 @@ AGENT_ORDER = [
     "PedagogyDesigner",
     "Reviewer",
 ]
+
+
+@router.get("/model-config", response_model=ModelConfigOut)
+def read_model_config(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """仅返回掩码状态，API Key 明文永不离开服务端。"""
+    return get_masked_model_config(db)
+
+
+@router.put("/model-config", response_model=ModelConfigOut)
+def update_model_config(
+    body: ModelConfigUpdate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    return save_model_config(
+        db,
+        enabled=body.enabled,
+        api_base=body.api_base,
+        model=body.model,
+        api_key=body.api_key,
+        clear_api_key=body.clear_api_key,
+    )
+
+
+@router.post("/model-config/test")
+async def test_model_config(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    config = get_active_model_config(db)
+    if not config.api_key or not config.model:
+        raise HTTPException(400, "请先保存模型名和 API Key")
+    url = f"{config.api_base.rstrip('/')}/chat/completions"
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": config.model,
+                    "messages": [{"role": "user", "content": "请只回复：连接成功"}],
+                    "temperature": 0,
+                    "max_tokens": 16,
+                },
+            )
+        if response.status_code >= 400:
+            raise HTTPException(response.status_code, f"模型服务返回 HTTP {response.status_code}，请核对地址、模型名和密钥")
+        data = response.json()
+        if not (data.get("choices") or []):
+            raise HTTPException(502, "模型服务已响应，但返回格式不是 OpenAI Chat Completions 格式")
+    except HTTPException:
+        raise
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(502, f"连接模型服务失败：{type(exc).__name__}") from None
+    return {"success": True, "message": "连接成功", "model": config.model}
 
 
 def _parse_meta(config_yaml: str, agent_name: str) -> dict:

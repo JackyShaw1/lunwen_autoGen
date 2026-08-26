@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import CasePackage, CaseTask, User
+from app.models import CasePackage, CaseTask, SystemMeta, User
 from app.seed import _recover_interrupted_generation_tasks
 from app.services.orchestrator import _task_context, _validate_agent_output
 from app.services.package_builder import (
@@ -25,6 +25,12 @@ from app.services.objective_generator import generate_objectives
 from app.services.pptx_export_service import build_ppt_outline, export_pptx
 from app.services.skill_loader import validate_package_with_skill
 from app.services.course_blueprint_service import build_case_blueprint, text_similarity, validate_approved_blueprint
+from app.services.runtime_model_service import (
+    MODEL_API_KEY,
+    get_active_model_config,
+    get_masked_model_config,
+    save_model_config,
+)
 
 
 def make_task(class_hours: int = 1) -> CaseTask:
@@ -52,6 +58,30 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_runtime_model_key_is_encrypted_and_never_returned(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        try:
+            result = save_model_config(
+                session,
+                enabled=True,
+                api_base="https://example-model.test/v1/",
+                model="example-chat",
+                api_key="sk-plain-secret",
+            )
+            stored = session.get(SystemMeta, MODEL_API_KEY)
+            self.assertIsNotNone(stored)
+            self.assertNotIn("sk-plain-secret", stored.value)
+            self.assertNotIn("sk-plain-secret", json.dumps(result))
+            self.assertEqual(result["api_key_masked"], "••••••••")
+            active = get_active_model_config(session)
+            self.assertTrue(active.available)
+            self.assertEqual(active.api_key, "sk-plain-secret")
+            self.assertEqual(get_masked_model_config(session)["source"], "admin")
+        finally:
+            session.close()
+
     def _contract_task(self, title: str, subject: str, course: str) -> tuple[CaseTask, dict]:
         task = make_task(2)
         task.title = title

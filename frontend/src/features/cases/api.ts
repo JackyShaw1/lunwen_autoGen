@@ -240,3 +240,36 @@ export async function updateAgentConfig(name: string, config_yaml: string) {
   const { data } = await api.put(`/admin/agents/${name}`, { config_yaml, activate: true })
   return data
 }
+
+export interface ModelConfig {
+  enabled: boolean
+  api_base: string
+  model: string
+  api_key_configured: boolean
+  api_key_masked: string
+  available: boolean
+  source: 'admin' | 'environment' | 'none'
+}
+
+export async function fetchModelConfig() {
+  const { data } = await api.get<ModelConfig>('/admin/model-config')
+  return data
+}
+
+export async function updateModelConfig(payload: {
+  enabled: boolean
+  api_base: string
+  model: string
+  api_key?: string
+  clear_api_key?: boolean
+}) {
+  const { data } = await api.put<ModelConfig>('/admin/model-config', payload)
+  return data
+}
+
+export async function testModelConfig() {
+  const { data } = await api.post<{ success: boolean; message: string; model: string }>(
+    '/admin/model-config/test',
+  )
+  return data
+}

@@ -11,6 +11,7 @@ import GenerationMonitor from '@/pages/GenerationMonitor'
 import CaseDetail from '@/pages/CaseDetail'
 import Export from '@/pages/Export'
 import AgentConfig from '@/pages/admin/AgentConfig'
+import ModelConfig from '@/pages/admin/ModelConfig'
 
 export function AppRoutes() {
   return (
@@ -30,6 +31,7 @@ export function AppRoutes() {
           <Route element={<AdminGuard />}>
             <Route element={<AdminLayout />}>
               <Route path="/admin/agents" element={<AgentConfig />} />
+              <Route path="/admin/model" element={<ModelConfig />} />
             </Route>
           </Route>
         </Route>

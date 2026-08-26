@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { Input, Label, Textarea } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Input'
 import { AdminSubSection } from '@/components/layout/AdminLayout'
 import { fetchAgentConfig, fetchAgents, updateAgentConfig } from '@/features/cases/api'
 import { authStore } from '@/stores/authStore'
@@ -154,15 +154,6 @@ export default function AgentConfig() {
         </Card>
       </AdminSubSection>
 
-      <AdminSubSection id="global" title="全局设置">
-        <Card className="max-w-lg space-y-4">
-          <div>
-            <Label>Reviewer 通过阈值</Label>
-            <Input type="number" value={4.0} readOnly />
-          </div>
-          <p className="text-xs text-gray-500">阈值由后端 REVIEWER_PASS_THRESHOLD 环境变量控制</p>
-        </Card>
-      </AdminSubSection>
     </div>
   )
 }

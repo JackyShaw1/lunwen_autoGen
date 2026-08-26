@@ -191,6 +191,37 @@ class AgentConfigUpdate(BaseModel):
     activate: bool = True
 
 
+class ModelConfigUpdate(BaseModel):
+    enabled: bool = False
+    api_base: str = Field(min_length=8, max_length=500)
+    model: str = Field(min_length=1, max_length=100)
+    api_key: str | None = Field(default=None, max_length=500)
+    clear_api_key: bool = False
+
+    @field_validator("api_base")
+    @classmethod
+    def validate_api_base(cls, value: str) -> str:
+        cleaned = value.strip().rstrip("/")
+        if not cleaned.startswith(("https://", "http://")):
+            raise ValueError("接口地址必须以 http:// 或 https:// 开头")
+        return cleaned
+
+    @field_validator("model")
+    @classmethod
+    def clean_model(cls, value: str) -> str:
+        return value.strip()
+
+
+class ModelConfigOut(BaseModel):
+    enabled: bool
+    api_base: str
+    model: str
+    api_key_configured: bool
+    api_key_masked: str
+    available: bool
+    source: str
+
+
 # CasePackage JSON Schema（与前端 types/case.ts 对齐）
 class CaseMeta(BaseModel):
     title: str

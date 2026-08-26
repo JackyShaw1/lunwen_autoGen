@@ -27,6 +27,8 @@ python -m app.main
 
 登录页支持公开注册教师账号，初始额度默认为 30 次，可通过 `DEFAULT_REGISTRATION_QUOTA` 调整。管理员账号不能通过公开注册获得。演示账号默认不创建；仅开发环境明确设置 `SEED_DEMO_USERS=true` 时启用。
 
+管理员登录后可访问 `/admin/model` 配置 OpenAI Chat Completions 兼容的大模型服务。接口地址、模型名、启停状态和 API Key 保存后即时生效；API Key 使用由 `SECRET_KEY` 派生的密钥加密落库，读取接口只返回掩码。生产环境必须固定配置 `SECRET_KEY`，否则服务重启后无法解密已保存的 API Key。
+
 ## 主要 API
 
 | 方法 | 路径 | 说明 |
@@ -45,6 +47,8 @@ python -m app.main
 | GET | `/api/materials/search?q=...` | 检索经审核的政府/机构官网视觉素材 |
 | GET | `/api/materials/{id}/image` | 安全代理并缓存目录内官方图片 |
 | GET | `/api/admin/agents` | Agent YAML 列表（管理员） |
+| GET / PUT | `/api/admin/model-config` | 读取或更新运行时大模型配置（管理员） |
+| POST | `/api/admin/model-config/test` | 测试当前模型连接（管理员） |
 | WS | `/ws/cases/{id}` | 生成进度推送 |
 
 ## 生成模式

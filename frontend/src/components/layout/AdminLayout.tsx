@@ -2,12 +2,8 @@ import { Outlet, NavLink } from 'react-router-dom'
 import { LogoutButton } from './LogoutButton'
 
 const adminLinks = [
-  { id: 'agent-list', label: '🤖 Agent 角色' },
-  { id: 'workflow', label: '🔗 编排模板' },
-  { id: 'tools', label: '🔧 Tool 工具' },
-  { id: 'subjects', label: '📚 学科插件' },
-  { id: 'global', label: '🌐 全局设置' },
-  { id: 'monitor', label: '📊 运行监控' },
+  { to: '/admin/agents', label: '🤖 Agent 配置' },
+  { to: '/admin/model', label: '✨ 大模型配置' },
 ]
 
 export function AdminLayout() {
@@ -17,13 +13,17 @@ export function AdminLayout() {
         <div className="mb-4 px-2 text-sm font-bold text-primary">⚙️ Agent 配置中心</div>
         <nav className="flex-1 space-y-0.5">
           {adminLinks.map((link) => (
-            <a
-              key={link.id}
-              href={`#${link.id}`}
-              className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            <NavLink
+              key={link.to}
+              to={link.to}
+              className={({ isActive }) =>
+                `block rounded-lg px-3 py-2 text-sm ${
+                  isActive ? 'bg-indigo-100 font-semibold text-primary' : 'text-gray-700 hover:bg-gray-100'
+                }`
+              }
             >
               {link.label}
-            </a>
+            </NavLink>
           ))}
         </nav>
         <NavLink to="/dashboard" className="mt-4 block px-3 py-2 text-sm text-gray-500 hover:text-primary">
