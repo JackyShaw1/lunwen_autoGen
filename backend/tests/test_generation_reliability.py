@@ -1,7 +1,10 @@
 import re
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from pptx import Presentation
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -19,6 +22,7 @@ from app.services.package_builder import (
 from app.services.grounded_case_service import generation_preflight_error
 from app.services.video_service import search_official_videos
 from app.services.objective_generator import generate_objectives
+from app.services.pptx_export_service import build_ppt_outline, export_pptx
 from app.services.skill_loader import validate_package_with_skill
 
 
@@ -121,6 +125,38 @@ class GenerationReliabilityTests(unittest.TestCase):
                     if issue.get("code") in {"timing_overflow", "timing_missing"}
                 ]
                 self.assertEqual(timing_errors, [])
+
+    def test_ppt_uses_editorial_galleries_and_teacher_method_structure(self) -> None:
+        task = make_task(2)
+        task.config["special_requirements"] = "以钱学森综合集成方法论为知识点，必须使用真实案例并融入课程思政。"
+        package = build_structured_package(task)
+        outline = build_ppt_outline(package, {"density": "standard", "audience": "teacher"})
+        kinds = [slide["kind"] for slide in outline["slides"]]
+        self.assertIn("visual_gallery", kinds)
+        self.assertNotIn("visual", kinds)
+        self.assertIn("method_map", kinds)
+        self.assertIn("ideology", kinds)
+        galleries = [slide for slide in outline["slides"] if slide["kind"] == "visual_gallery"]
+        self.assertTrue(all(1 <= len(slide["items"]) <= 3 for slide in galleries))
+        self.assertEqual(sum(len(slide["items"]) for slide in galleries), 10)
+        self.assertLessEqual(sum(kind == "sources" for kind in kinds), 2)
+        self.assertLessEqual(sum(kind == "videos" for kind in kinds), 2)
+        self.assertGreaterEqual(outline["design_metrics"]["visual_pages"], 4)
+
+    def test_redesigned_ppt_is_a_valid_editable_widescreen_file(self) -> None:
+        package = build_structured_package(make_task(2))
+        from app.services import pptx_export_service
+        with TemporaryDirectory() as directory:
+            original_export_dir = pptx_export_service.settings.export_dir
+            try:
+                pptx_export_service.settings.export_dir = directory
+                path = Path(export_pptx(package, package["meta"]["title"], version=8))
+                deck = Presentation(str(path))
+                self.assertGreater(len(deck.slides), 20)
+                self.assertEqual(round(deck.slide_width / deck.slide_height, 2), 1.78)
+                self.assertTrue(any(shape.has_text_frame for slide in deck.slides for shape in slide.shapes))
+            finally:
+                pptx_export_service.settings.export_dir = original_export_dir
 
     def test_overflowing_model_schedule_is_repaired(self) -> None:
         package = {"instructor_guide": {"teaching_flow": "阅读(20min)→讨论(25min)→汇报(20min)"}}

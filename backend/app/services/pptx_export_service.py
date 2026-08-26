@@ -36,9 +36,9 @@ THEMES = {
 }
 
 DENSITY = {
-    "concise": {"bullets": 3, "bullet_chars": 52, "narrative_slides": 3, "questions": 3},
-    "standard": {"bullets": 4, "bullet_chars": 68, "narrative_slides": 5, "questions": 3},
-    "detailed": {"bullets": 5, "bullet_chars": 88, "narrative_slides": 8, "questions": 2},
+    "concise": {"bullets": 3, "bullet_chars": 52, "narrative_slides": 3, "questions": 3, "gallery_size": 4},
+    "standard": {"bullets": 4, "bullet_chars": 68, "narrative_slides": 5, "questions": 3, "gallery_size": 3},
+    "detailed": {"bullets": 5, "bullet_chars": 88, "narrative_slides": 8, "questions": 2, "gallery_size": 3},
 }
 
 
@@ -101,6 +101,37 @@ def _section_slide(title: str, number: str, kicker: str) -> dict[str, Any]:
     }
 
 
+def _visual_gallery_slides(materials: list[dict[str, Any]], density: str) -> list[dict[str, Any]]:
+    """Turn evidence images into editorial spreads instead of one repetitive slide per image."""
+    page_size = int(DENSITY[density]["gallery_size"])
+    pages: list[dict[str, Any]] = []
+    for index in range(0, len(materials), page_size):
+        page_items = materials[index : index + page_size]
+        pages.append({
+            "kind": "visual_gallery", "section": "案例证据",
+            "title": "真实现场：从图像中读出系统" if index == 0 else "真实现场：证据切片",
+            "items": page_items,
+            "notes": _speaker_note(
+                "视觉证据", "把图片作为观察和验证材料，而不是装饰。",
+                [*[item.get("caption", "") for item in page_items], "追问：图片能证明什么，又不能证明什么？"], 3,
+            ),
+        })
+    return pages
+
+
+def _design_metrics(slides: list[dict[str, Any]]) -> dict[str, Any]:
+    visual_pages = sum(1 for slide in slides if slide["kind"] in {"cover", "visual_gallery"})
+    activity_pages = sum(1 for slide in slides if slide["kind"] in {"decision", "questions", "flow", "alignment"})
+    appendix_pages = sum(1 for slide in slides if slide["kind"] in {"sources", "videos"})
+    return {
+        "visual_pages": visual_pages,
+        "activity_pages": activity_pages,
+        "appendix_pages": appendix_pages,
+        "quality_label": "智能叙事排版",
+        "quality_summary": "已按课堂节奏重组，采用图片画廊、方法路径、决策任务与紧凑资源附录。",
+    }
+
+
 def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = None) -> dict[str, Any]:
     options = options or {}
     density = options.get("density", "standard")
@@ -122,6 +153,8 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
     title = _clean_text(meta.get("title") or "教学案例")
     course = _clean_text(meta.get("course") or meta.get("subject") or "课程教学")
     materials = resolve_package_materials(package, limit=10)
+    teacher_requirements = package.get("teacher_requirements") or {}
+    ideology = package.get("course_ideology") or {}
     slides: list[dict[str, Any]] = [
         {
             "kind": "cover", "title": title,
@@ -167,6 +200,24 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
             "notes": _speaker_note("学习目标", "让学生知道课堂结束时需要交付什么能力。", objectives, 3),
         })
 
+    knowledge_anchors = [str(item) for item in teacher_requirements.get("knowledge_anchors") or [] if str(item).strip()]
+    if knowledge_anchors:
+        slides.append({
+            "kind": "method_map", "section": "课程导入", "title": "方法不是名词：它如何形成认识闭环",
+            "items": knowledge_anchors[:6],
+            "problem": _clean_text(teacher_requirements.get("teaching_problem")),
+            "notes": _speaker_note("方法路径", "把教师指定的知识点组织为可执行的认识过程。", knowledge_anchors[:6], 4),
+        })
+
+    if ideology.get("figure") or ideology.get("themes"):
+        slides.append({
+            "kind": "ideology", "section": "课程导入", "title": "价值坐标：方法背后的责任与选择",
+            "figure": _clean_text(ideology.get("figure")),
+            "themes": [_clean_text(item) for item in ideology.get("themes") or []],
+            "implementation": _clean_text(ideology.get("implementation")),
+            "notes": _speaker_note("价值坐标", "用可核验人物与实践呈现价值观，不虚构名言或煽情故事。", ideology.get("themes") or [], 3),
+        })
+
     slides.append(_section_slide("进入案例现场", "01", "先理解情境，再急于判断"))
 
     for index, items in enumerate(_content_pages(body.get("background", ""), density), 1):
@@ -177,14 +228,10 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
             "notes": _speaker_note("案例背景", "交代决策发生的环境、目标和约束。", [items[0] if items else ""], 3),
         })
 
-    for asset in materials:
-        slides.append({
-            "kind": "visual", "section": "案例情境", "title": asset["title"],
-            "asset_id": asset["id"], "caption": asset["caption"],
-            "source_org": asset["source_org"], "source_page_url": asset["source_page_url"],
-            "photographer": asset.get("photographer"),
-            "notes": _speaker_note(asset["title"], "利用真实视觉材料建立空间感和可信度。", [asset["caption"], "提醒学生区分真实工程图片与教学虚构叙事。"], 2),
-        })
+    # Front-load only the first evidence spread; the rest appears after the story to vary pacing.
+    visual_pages = _visual_gallery_slides(materials, density)
+    if visual_pages:
+        slides.append(visual_pages[0])
 
     characters = body.get("characters") or []
     if characters:
@@ -204,6 +251,8 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
             "chapter": f"{index:02d}", "emphasis": index % 2, "visual_mode": mode == "visual",
             "notes": _speaker_note(phase, "按事件推进呈现信息，保持决策悬念。", ["追问：这里出现了什么新证据？", "追问：谁承担了风险？"], 3),
         })
+
+    slides.extend(visual_pages[1:])
 
     if body.get("decision_point"):
         slides.append(_section_slide("站到决策者的位置", "03", "没有完美方案，只有可解释的取舍"))
@@ -254,8 +303,8 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
             })
 
     evidence_sources = package.get("evidence_sources") or []
-    for index in range(0, len(evidence_sources), 4):
-        page_sources = evidence_sources[index : index + 4]
+    for index in range(0, len(evidence_sources), 5):
+        page_sources = evidence_sources[index : index + 5]
         slides.append({
             "kind": "sources", "section": "事实核验", "title": "案例事实从哪里来" if index == 0 else "案例事实从哪里来 · 续",
             "items": page_sources,
@@ -266,8 +315,8 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
         })
 
     video_resources = package.get("video_resources") or []
-    for index in range(0, len(video_resources), 4):
-        page_videos = video_resources[index : index + 4]
+    for index in range(0, len(video_resources), 5):
+        page_videos = video_resources[index : index + 5]
         slides.append({
             "kind": "videos", "section": "拓展资源", "title": "精选课堂视频" if index == 0 else "精选课堂视频 · 续",
             "items": page_videos,
@@ -282,6 +331,7 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
     return {
         "title": title, "theme": theme, "density": density, "audience": audience,
         "mode": mode, "include_speaker_notes": include_speaker_notes, "slides": slides,
+        "design_metrics": _design_metrics(slides),
     }
 
 
@@ -302,6 +352,7 @@ def outline_preview(outline: dict[str, Any]) -> dict[str, Any]:
     return {
         **{key: outline[key] for key in ("title", "theme", "density", "audience", "mode", "include_speaker_notes")},
         "slide_count": len(preview), "slides": preview,
+        "design_metrics": outline.get("design_metrics") or _design_metrics(outline["slides"]),
     }
 
 
@@ -368,6 +419,8 @@ def _base_slide(prs: Presentation, palette: dict[str, str], title: str, section:
     background.solid()
     background.fore_color.rgb = _rgb(palette["background"])
     _shape(slide, 0, 0, 0.13, 7.5, palette["accent"], radius=False)
+    _shape(slide, 11.9, -0.44, 1.85, 1.85, palette["soft"], radius=True)
+    _shape(slide, 12.47, 0.08, 0.52, 0.52, palette["accent2"], radius=True)
     if section:
         _textbox(slide, section.upper(), 0.65, 0.42, 3.5, 0.3, size=9, color=palette["accent"], bold=True)
     _textbox(slide, title, 0.65, 0.78, 12.0, 0.6, size=25, color=palette["primary"], bold=True)
@@ -453,6 +506,69 @@ def _render_bullets(slide, items: list[str], palette: dict[str, str], *, start_y
         _textbox(slide, _clean_text(item), 1.28, y, 11.1, row_h - 0.05, size=font_size, color=palette["text"], valign=MSO_ANCHOR.MIDDLE)
 
 
+def _render_method_map(slide, spec: dict[str, Any], palette: dict[str, str]) -> None:
+    items = spec.get("items") or []
+    colors = [palette["accent"], palette["accent2"], palette["success"], palette["warning"], palette["primary"], palette["danger"]]
+    for index, item in enumerate(items[:6]):
+        col, row = index % 3, index // 3
+        x, y = 0.74 + col * 4.03, 1.65 + row * 1.65
+        _shape(slide, x + 0.07, y + 0.08, 3.65, 1.25, "D9E2E7")
+        _shape(slide, x, y, 3.65, 1.25, palette["surface"], line="D9E2E7")
+        _shape(slide, x + 0.22, y + 0.28, 0.55, 0.55, colors[index])
+        _textbox(slide, f"{index + 1:02d}", x + 0.29, y + 0.43, 0.4, 0.18, size=9, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER)
+        _textbox(slide, item, x + 0.98, y + 0.25, 2.35, 0.66, size=15, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
+        if index < len(items[:6]) - 1:
+            connector = "↓" if index == 2 else "→"
+            cx = x + (1.54 if index == 2 else 3.66)
+            cy = y + (1.15 if index == 2 else 0.42)
+            _textbox(slide, connector, cx, cy, 0.35, 0.35, size=14, color=palette["accent"], bold=True, align=PP_ALIGN.CENTER)
+    problem = _clean_text(spec.get("problem"))
+    if problem:
+        _shape(slide, 0.74, 5.13, 11.72, 0.92, palette["primary"])
+        _textbox(slide, "教学难点", 1.02, 5.36, 0.92, 0.25, size=10, color=palette["accent2"], bold=True)
+        _textbox(slide, problem[:120], 2.08, 5.26, 9.96, 0.48, size=12, color="FFFFFF", bold=True, valign=MSO_ANCHOR.MIDDLE)
+
+
+def _render_ideology(slide, spec: dict[str, Any], palette: dict[str, str]) -> None:
+    _shape(slide, 0.72, 1.55, 4.1, 4.78, palette["primary"])
+    _textbox(slide, "VALUE\nCOMPASS", 1.08, 1.95, 2.7, 0.85, size=12, color=palette["accent2"], bold=True)
+    _textbox(slide, spec.get("figure") or "实践人物", 1.08, 3.0, 3.05, 0.7, size=31, color="FFFFFF", bold=True)
+    _textbox(slide, "用真实贡献呈现价值，不虚构对白与名言", 1.08, 4.72, 3.12, 0.75, size=13, color="DCE7EC", bold=True)
+    themes = spec.get("themes") or []
+    for index, theme in enumerate(themes[:6]):
+        col, row = index % 2, index // 2
+        x, y = 5.25 + col * 3.42, 1.72 + row * 0.9
+        _shape(slide, x, y, 3.08, 0.65, palette["soft"], line="D9E2E7")
+        _textbox(slide, theme, x + 0.15, y + 0.18, 2.78, 0.25, size=13, color=palette["accent"], bold=True, align=PP_ALIGN.CENTER)
+    _shape(slide, 5.25, 4.68, 7.18, 1.48, palette["surface"], line="D9E2E7")
+    _textbox(slide, "如何融入案例", 5.55, 4.95, 1.2, 0.28, size=10, color=palette["muted"], bold=True)
+    _textbox(slide, spec.get("implementation", ""), 6.76, 4.84, 5.22, 0.72, size=13, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
+
+
+def _render_visual_gallery(slide, spec: dict[str, Any], palette: dict[str, str]) -> None:
+    items = spec.get("items") or []
+    count = min(len(items), 4)
+    layouts = {
+        1: [(0.72, 1.5, 11.82, 4.95)],
+        2: [(0.72, 1.5, 7.22, 4.95), (8.16, 1.5, 4.38, 4.95)],
+        3: [(0.72, 1.5, 7.22, 4.95), (8.16, 1.5, 4.38, 2.36), (8.16, 4.09, 4.38, 2.36)],
+        4: [(0.72, 1.5, 5.76, 2.36), (6.74, 1.5, 5.8, 2.36), (0.72, 4.09, 5.76, 2.36), (6.74, 4.09, 5.8, 2.36)],
+    }
+    for index, item in enumerate(items[:4]):
+        x, y, w, h = layouts[count][index]
+        try:
+            _add_image_cover(slide, get_cached_material_image(item["id"]), x, y, w, h)
+        except Exception:
+            _shape(slide, x, y, w, h, palette["soft"], line="D9E2E7")
+            _textbox(slide, "图片暂未缓存", x + 0.2, y + h / 2 - 0.2, w - 0.4, 0.35, size=11, color=palette["muted"], align=PP_ALIGN.CENTER)
+        _shape(slide, x, y + h - 0.62, w, 0.62, palette["primary"], radius=False)
+        caption = _clean_text(item.get("caption") or item.get("title"))
+        _textbox(slide, caption[:46] + ("…" if len(caption) > 46 else ""), x + 0.18, y + h - 0.5, w - 0.36, 0.22, size=9 if count >= 3 else 11, color="FFFFFF", bold=True)
+        source = _textbox(slide, f"{item.get('source_org', '')}  ↗", x + 0.18, y + h - 0.25, w - 0.36, 0.16, size=7, color="DCE7EC", align=PP_ALIGN.RIGHT)
+        if item.get("source_page_url"):
+            source.click_action.hyperlink.address = item["source_page_url"]
+
+
 def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: dict[str, Any] | None = None) -> str:
     outline = build_ppt_outline(package, options)
     palette = THEMES[outline["theme"]]
@@ -510,6 +626,12 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
             _render_overview(slide, spec, palette)
         elif kind == "story":
             _render_story(slide, spec, palette)
+        elif kind == "method_map":
+            _render_method_map(slide, spec, palette)
+        elif kind == "ideology":
+            _render_ideology(slide, spec, palette)
+        elif kind == "visual_gallery":
+            _render_visual_gallery(slide, spec, palette)
         elif kind == "agenda":
             items = spec.get("items") or []
             _shape(slide, 1.18, 3.17, 10.72, 0.06, "D9E2E7", radius=False)
@@ -613,25 +735,25 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
                     _textbox(slide, _clean_text(value), x_positions[col] + 0.08, y + 0.05, widths[col] - 0.16, row_h - 0.1, size=10, color=palette["text"], valign=MSO_ANCHOR.MIDDLE)
         elif kind == "sources":
             for index, source in enumerate(spec.get("items") or []):
-                y = 1.52 + index * 1.3
-                _shape(slide, 0.72, y, 11.82, 1.08, palette["surface"], line="D9E2E7")
-                _textbox(slide, f"[{source.get('id', '')}]", 0.98, y + 0.2, 0.62, 0.3, size=12, color=palette["accent"], bold=True)
-                _textbox(slide, _clean_text(source.get("title")), 1.68, y + 0.13, 7.55, 0.38, size=15, color=palette["text"], bold=True)
-                _textbox(slide, _clean_text(source.get("source_org")), 9.38, y + 0.16, 2.75, 0.28, size=10, color=palette["muted"], align=PP_ALIGN.RIGHT)
-                _textbox(slide, _clean_text(source.get("usage")), 1.68, y + 0.59, 9.85, 0.28, size=9, color=palette["muted"])
-                link = _textbox(slide, "官网原文 ↗", 11.38, y + 0.58, 0.75, 0.24, size=8, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
+                y = 1.48 + index * 1.04
+                _shape(slide, 0.72, y, 11.82, 0.88, palette["surface"], line="D9E2E7")
+                _textbox(slide, f"[{source.get('id', '')}]", 0.98, y + 0.17, 0.62, 0.26, size=11, color=palette["accent"], bold=True)
+                _textbox(slide, _clean_text(source.get("title")), 1.68, y + 0.1, 7.55, 0.3, size=13, color=palette["text"], bold=True)
+                _textbox(slide, _clean_text(source.get("source_org")), 9.38, y + 0.12, 2.75, 0.24, size=9, color=palette["muted"], align=PP_ALIGN.RIGHT)
+                _textbox(slide, _clean_text(source.get("usage"))[:105], 1.68, y + 0.5, 9.85, 0.22, size=8, color=palette["muted"])
+                link = _textbox(slide, "官网原文 ↗", 11.38, y + 0.49, 0.75, 0.2, size=7, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
                 if source.get("source_page_url"):
                     link.click_action.hyperlink.address = source["source_page_url"]
         elif kind == "videos":
             for index, video in enumerate(spec.get("items") or []):
-                y = 1.52 + index * 1.3
-                _shape(slide, 0.72, y, 11.82, 1.08, palette["surface"], line="D9E2E7")
-                _shape(slide, 0.98, y + 0.22, 0.55, 0.55, palette["accent"])
-                _textbox(slide, "▶", 1.07, y + 0.35, 0.36, 0.2, size=10, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER)
-                _textbox(slide, _clean_text(video.get("title")), 1.72, y + 0.12, 7.85, 0.36, size=14, color=palette["text"], bold=True)
-                _textbox(slide, _clean_text(video.get("source_org")), 9.5, y + 0.15, 2.55, 0.26, size=9, color=palette["muted"], align=PP_ALIGN.RIGHT)
-                _textbox(slide, _clean_text(video.get("usage")), 1.72, y + 0.58, 9.45, 0.27, size=9, color=palette["muted"])
-                link = _textbox(slide, "播放 ↗", 11.28, y + 0.58, 0.75, 0.22, size=8, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
+                y = 1.48 + index * 1.04
+                _shape(slide, 0.72, y, 11.82, 0.88, palette["surface"], line="D9E2E7")
+                _shape(slide, 0.98, y + 0.17, 0.5, 0.5, palette["accent"])
+                _textbox(slide, "▶", 1.06, y + 0.29, 0.34, 0.18, size=9, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER)
+                _textbox(slide, _clean_text(video.get("title")), 1.66, y + 0.09, 7.9, 0.3, size=13, color=palette["text"], bold=True)
+                _textbox(slide, _clean_text(video.get("source_org")), 9.5, y + 0.11, 2.55, 0.23, size=8, color=palette["muted"], align=PP_ALIGN.RIGHT)
+                _textbox(slide, _clean_text(video.get("usage"))[:105], 1.66, y + 0.49, 9.45, 0.22, size=8, color=palette["muted"])
+                link = _textbox(slide, "播放 ↗", 11.28, y + 0.49, 0.75, 0.2, size=7, color=palette["accent"], bold=True, align=PP_ALIGN.RIGHT)
                 if video.get("video_url"):
                     link.click_action.hyperlink.address = video["video_url"]
         elif kind == "closing":

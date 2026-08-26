@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Download, Eye, FileText, GraduationCap, Layers3, MessageSquareText, Palette, Presentation, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Check, Download, Eye, FileText, GraduationCap, Images, Layers3, MessageSquareText, Palette, Presentation, ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
@@ -19,16 +19,16 @@ const FORMATS: Array<{ id: ExportFormat; title: string; desc: string }> = [
   { id: 'pptx', title: 'PPT 课堂课件 (.pptx)', desc: '自动提炼内容、按教学节奏分页，可在 WPS 或 PowerPoint 中继续编辑' },
 ]
 
-const THEMES: Array<{ id: PptOptions['theme']; label: string; desc: string; color: string }> = [
-  { id: 'academic', label: '学术靛蓝', desc: '稳重、清晰，适合高校课堂', color: 'bg-indigo-600' },
-  { id: 'modern', label: '现代青绿', desc: '简洁、有活力，适合培训研讨', color: 'bg-teal-600' },
-  { id: 'minimal', label: '极简暖灰', desc: '克制、突出内容与判断', color: 'bg-amber-600' },
+const THEMES: Array<{ id: PptOptions['theme']; label: string; desc: string; colors: [string, string, string] }> = [
+  { id: 'academic', label: '学术靛蓝', desc: '深色章节页 + 靛蓝信息卡', colors: ['bg-indigo-950', 'bg-indigo-600', 'bg-indigo-100'] },
+  { id: 'modern', label: '现代青绿', desc: '青绿数据感 + 清爽大留白', colors: ['bg-slate-800', 'bg-teal-600', 'bg-teal-100'] },
+  { id: 'minimal', label: '极简暖灰', desc: '编辑部排版 + 暖金色强调', colors: ['bg-stone-900', 'bg-amber-600', 'bg-amber-100'] },
 ]
 
 const DENSITIES: Array<{ id: PptOptions['density']; label: string; desc: string }> = [
-  { id: 'concise', label: '精简', desc: '约 15–20 页，突出关键冲突' },
-  { id: 'standard', label: '标准', desc: '约 20–28 页，兼顾叙事与讨论' },
-  { id: 'detailed', label: '详细', desc: '约 26–36 页，保留更多案例证据' },
+  { id: 'concise', label: '精简', desc: '约 22–28 页，突出关键冲突' },
+  { id: 'standard', label: '标准', desc: '约 28–34 页，兼顾叙事与讨论' },
+  { id: 'detailed', label: '详细', desc: '约 34–42 页，保留更多案例证据' },
 ]
 
 const MODES: Array<{ id: PptOptions['mode']; label: string; desc: string }> = [
@@ -96,7 +96,7 @@ export default function Export() {
           <h3 className="mt-5 text-lg font-bold">{format === 'pptx' ? '课堂课件包含' : '授课文档包含'}</h3>
           <ul className="mt-5 space-y-3 text-sm text-slate-300">
             {(format === 'pptx'
-              ? ['大图封面、章节转场与课堂路径', '案例仪表盘、目标阶梯与角色立场', '按阶段拆分的视觉叙事', '决策框架、研讨任务与目标评价', pptOptions.audience === 'teacher' ? '逐页讲师备注与授课时间线' : '适合直接投放的学生视图']
+              ? ['大图封面、章节转场与课堂路径', '图片画廊、方法路径与价值坐标', '按阶段拆分的视觉叙事', '决策框架、研讨任务与目标评价', pptOptions.audience === 'teacher' ? '逐页讲师备注与授课时间线' : '适合直接投放的学生视图']
               : ['案例正文与决策点', '分层讨论题', '教师参考手册', '教学目标对齐表', '虚构情境声明']
             ).map((item) => <li key={item} className="flex items-start gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-400" />{item}</li>)}
           </ul>
@@ -125,7 +125,7 @@ export default function Export() {
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><Palette size={16} />视觉主题</div>
                 <div className="grid gap-2 md:grid-cols-3">
-                  {THEMES.map((theme) => <button key={theme.id} type="button" onClick={() => updatePptOption('theme', theme.id)} className={cn('rounded-xl border p-3 text-left transition', pptOptions.theme === theme.id ? 'border-primary bg-indigo-50' : 'border-slate-200 hover:border-slate-300')}><span className={cn('mb-2 block h-2 w-10 rounded-full', theme.color)} /><span className="block text-sm font-semibold">{theme.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{theme.desc}</span></button>)}
+                  {THEMES.map((theme) => <button key={theme.id} type="button" onClick={() => updatePptOption('theme', theme.id)} className={cn('overflow-hidden rounded-xl border text-left transition', pptOptions.theme === theme.id ? 'border-primary bg-indigo-50 ring-1 ring-primary/20' : 'border-slate-200 hover:border-slate-300')}><span className="block bg-white p-2"><span className={cn('relative block aspect-[16/8] overflow-hidden rounded-md', theme.colors[2])}><span className={cn('absolute inset-y-0 left-0 w-[42%]', theme.colors[0])} /><span className={cn('absolute left-[9%] top-[24%] h-1.5 w-[22%] rounded-full', theme.colors[1])} /><span className="absolute left-[9%] top-[41%] h-1 w-[25%] rounded-full bg-white/80" /><span className="absolute left-[50%] top-[18%] h-[64%] w-[41%] rounded bg-white shadow-sm" /><span className={cn('absolute left-[55%] top-[30%] h-1.5 w-[27%] rounded-full', theme.colors[1])} /><span className="absolute left-[55%] top-[47%] h-1 w-[27%] rounded-full bg-slate-200" /><span className="absolute left-[55%] top-[60%] h-1 w-[20%] rounded-full bg-slate-200" /></span></span><span className="block px-3 pb-3 pt-1"><span className="block text-sm font-semibold">{theme.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{theme.desc}</span></span></button>)}
                 </div>
               </div>
 
@@ -163,9 +163,7 @@ export default function Export() {
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 md:p-6">
               <div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Eye size={16} />课件目录预览</div><p className="mt-1 text-xs text-slate-500">修改上方选项后，目录和页数会自动更新。</p></div>{outline && <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-primary shadow-sm">{outline.slide_count} 页</span>}</div>
               {previewLoading ? <div className="mt-4 animate-pulse rounded-xl bg-white p-5 text-sm text-slate-400">正在组织课件内容…</div> : outline ? (
-                <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
-                  {outline.slides.map((slide) => <div key={slide.index} className="flex gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500">{slide.index}</span><div className="min-w-0"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-slate-800">{slide.title}</p>{slide.teacher_only && <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">教师</span>}</div>{slide.summary && <p className="mt-1 line-clamp-1 text-xs text-slate-400">{slide.summary}</p>}</div></div>)}
-                </div>
+                <><div className="mt-4 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-white p-4"><div className="flex items-center gap-2 text-sm font-bold text-indigo-900"><Sparkles size={16} />{outline.design_metrics.quality_label}</div><p className="mt-1 text-xs leading-5 text-indigo-700/80">{outline.design_metrics.quality_summary}</p><div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-600"><span className="rounded-full bg-white px-2.5 py-1"><Images size={12} className="mr-1 inline" />视觉页 {outline.design_metrics.visual_pages}</span><span className="rounded-full bg-white px-2.5 py-1">互动页 {outline.design_metrics.activity_pages}</span><span className="rounded-full bg-white px-2.5 py-1">资源附录 {outline.design_metrics.appendix_pages}</span></div></div><div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">{outline.slides.map((slide) => <div key={slide.index} className="flex gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500">{slide.index}</span><div className="min-w-0"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-slate-800">{slide.title}</p>{slide.teacher_only && <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">教师</span>}</div>{slide.summary && <p className="mt-1 line-clamp-1 text-xs text-slate-400">{slide.summary}</p>}</div></div>)}</div></>
               ) : <p className="mt-4 rounded-xl bg-white p-4 text-xs text-slate-500">暂时无法预览目录，仍可尝试生成课件。</p>}
             </section>
           )}

@@ -160,6 +160,13 @@ export interface PptOutlinePreview {
   audience: PptOptions['audience']
   mode: PptOptions['mode']
   include_speaker_notes: boolean
+  design_metrics: {
+    visual_pages: number
+    activity_pages: number
+    appendix_pages: number
+    quality_label: string
+    quality_summary: string
+  }
   slides: Array<{ index: number; kind: string; title: string; summary: string; teacher_only: boolean }>
 }
 
