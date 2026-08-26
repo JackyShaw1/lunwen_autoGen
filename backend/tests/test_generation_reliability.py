@@ -24,6 +24,7 @@ from app.services.video_service import search_official_videos
 from app.services.objective_generator import generate_objectives
 from app.services.pptx_export_service import build_ppt_outline, export_pptx
 from app.services.skill_loader import validate_package_with_skill
+from app.services.course_blueprint_service import build_case_blueprint, text_similarity, validate_approved_blueprint
 
 
 def make_task(class_hours: int = 1) -> CaseTask:
@@ -51,6 +52,68 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def _contract_task(self, title: str, subject: str, course: str) -> tuple[CaseTask, dict]:
+        task = make_task(2)
+        task.title = title
+        task.subject = subject
+        task.course_name = course
+        payload = {
+            "title": title, "subject": subject, "course_name": course,
+            "case_type": task.case_type, "difficulty": task.difficulty,
+            "target_audience": task.target_audience, "learning_objectives": task.learning_objectives,
+        }
+        blueprint = build_case_blueprint(payload)
+        blueprint["approved"] = True
+        task.config = {"class_hours": 2, "approved_blueprint": blueprint}
+        return task, blueprint
+
+    def test_blueprint_requires_teacher_approval_and_context_match(self) -> None:
+        payload = {
+            "title": "运筹学中的随机规划", "subject": "管理学", "course_name": "运筹学",
+            "case_type": "决策型", "difficulty": "中级", "target_audience": "本科",
+            "learning_objectives": ["建立两阶段随机规划模型"],
+        }
+        blueprint = build_case_blueprint(payload)
+        self.assertEqual(blueprint["contract_id"], "stochastic_programming")
+        self.assertFalse(blueprint["approved"])
+        self.assertTrue(validate_approved_blueprint(payload, blueprint))
+        blueprint["approved"] = True
+        self.assertEqual(validate_approved_blueprint(payload, blueprint), [])
+        incomplete = {**blueprint, "required_elements": blueprint["required_elements"][:-1]}
+        self.assertTrue(any("不得删除" in issue for issue in validate_approved_blueprint(payload, incomplete)))
+        changed = {**payload, "course_name": "组织行为学"}
+        self.assertTrue(any("变化" in issue for issue in validate_approved_blueprint(changed, blueprint)))
+
+    def test_random_programming_case_contains_model_and_scenario_artifacts(self) -> None:
+        task, _ = self._contract_task("运筹学中的随机规划", "管理学", "运筹学")
+        package = build_structured_package(task)
+        visible = "".join(str(package["body"].get(key) or "") for key in ("background", "narrative", "decision_point"))
+        for term in ("随机变量", "概率", "决策变量", "目标函数", "约束", "追索"):
+            self.assertIn(term, visible)
+        self.assertEqual(len(package["discipline_artifacts"]["scenario_table"]), 3)
+        validation = validate_package_with_skill(package, _task_context(task))
+        self.assertTrue(validation["passed"], validation["issues"])
+
+    def test_contract_law_case_is_clause_and_rule_driven_not_template_clone(self) -> None:
+        random_task, _ = self._contract_task("运筹学中的随机规划", "管理学", "运筹学")
+        law_task, _ = self._contract_task("合同法中的设备买卖争议", "法学", "合同法")
+        random_package = build_structured_package(random_task)
+        law_package = build_structured_package(law_task)
+        visible = "".join(str(law_package["body"].get(key) or "") for key in ("background", "narrative", "decision_point"))
+        for term in ("合同条款", "验收", "解除", "违约", "抗辩", "证据", "救济"):
+            self.assertIn(term, visible)
+        self.assertLess(text_similarity(random_package["body"]["narrative"], law_package["body"]["narrative"]), 0.1)
+        validation = validate_package_with_skill(law_package, _task_context(law_task))
+        self.assertTrue(validation["passed"], validation["issues"])
+
+    def test_discipline_gate_rejects_removed_required_artifact(self) -> None:
+        task, _ = self._contract_task("运筹学中的随机规划", "管理学", "运筹学")
+        package = build_structured_package(task)
+        package["discipline_artifacts"].pop("objective_function")
+        validation = validate_package_with_skill(package, _task_context(task))
+        self.assertFalse(validation["passed"])
+        self.assertTrue(any(issue["code"] == "discipline_artifacts_missing" for issue in validation["issues"]))
+
     def test_objective_brief_turns_teacher_intent_into_observable_goals(self) -> None:
         result = generate_objectives({
             "title": "制造企业数字化转型中的组织阻力",
