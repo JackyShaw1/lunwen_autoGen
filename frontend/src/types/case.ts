@@ -166,6 +166,14 @@ export interface CreateCasePayload {
   workflow_template: string
   class_hours?: number
   special_requirements?: string
+  objective_brief?: ObjectiveBrief
+}
+
+export interface ObjectiveBrief {
+  learning_challenge: string
+  desired_performance: string
+  required_concepts: string
+  assessment_evidence: string
 }
 
 export interface AgentProgressItem {

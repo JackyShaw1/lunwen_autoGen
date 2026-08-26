@@ -39,6 +39,13 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ObjectiveBrief(BaseModel):
+    learning_challenge: str = Field(default="", max_length=500)
+    desired_performance: str = Field(default="", max_length=500)
+    required_concepts: str = Field(default="", max_length=500)
+    assessment_evidence: str = Field(default="", max_length=500)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -57,6 +64,7 @@ class CreateCaseRequest(BaseModel):
     workflow_template: str = "sequential_standard"
     class_hours: int | None = 2
     special_requirements: str | None = None
+    objective_brief: ObjectiveBrief | None = None
 
 
 class ObjectiveSuggestionRequest(BaseModel):
@@ -67,6 +75,7 @@ class ObjectiveSuggestionRequest(BaseModel):
     difficulty: str = "中级"
     target_audience: str = "本科"
     variant: int = Field(default=0, ge=0, le=1000)
+    objective_brief: ObjectiveBrief | None = None
 
 
 class ObjectiveSuggestionResponse(BaseModel):
@@ -74,6 +83,9 @@ class ObjectiveSuggestionResponse(BaseModel):
     framework_name: str
     rationale: str
     objectives: list[str]
+    brief_summary: str
+    quality_score: int = Field(ge=0, le=100)
+    quality_checks: list[dict[str, Any]]
 
 
 class CaseTaskOut(BaseModel):

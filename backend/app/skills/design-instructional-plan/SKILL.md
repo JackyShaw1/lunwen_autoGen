@@ -10,11 +10,12 @@ Build the teaching design from the learner outcome backward.
 ## Workflow
 
 1. Preserve the teacher's topic, course, audience, and stated intent.
-2. Select a reasoning framework from `references/objective-writing.md`.
-3. Write three observable objectives at increasing cognitive levels. Read `references/bloom-taxonomy.md` when choosing verbs.
-4. Build questions from case evidence rather than generic course knowledge. Read `references/discussion-ladder.md`.
-5. Map every objective to a case section, activity, and observable assessment. Read `references/alignment-rules.md`.
-6. Keep the sum of activity minutes within the available class time.
+2. If the teacher is not comfortable writing prompts, collect an objective brief instead: current learner challenge, desired observable performance, required course concepts, and assessment evidence. Do not expose prompt-engineering jargon as a prerequisite.
+3. Select a reasoning framework from `references/objective-writing.md`.
+4. Write three observable objectives at increasing cognitive levels. Read `references/bloom-taxonomy.md` when choosing verbs.
+5. Build questions from case evidence rather than generic course knowledge. Read `references/discussion-ladder.md`.
+6. Map every objective to a case section, activity, and observable assessment. Read `references/alignment-rules.md`.
+7. Keep the sum of activity minutes within the available class time.
 
 Use `scripts/generate_objectives.py` for deterministic objective suggestions. Do not replace teacher-edited objectives unless explicitly requested.
 

@@ -87,6 +87,8 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
         "全局资源规范：案例事实来源、官方视觉素材、推荐视觉素材和视频资源均以约10项为目标；"
         "只使用与当前课程强相关的政府、科研院所、权威出版物、权威媒体或已审核机构来源。"
         "数量不足时保留缺口，禁止编造链接、播放量或用无关资源凑数。\n"
+        "目标解释规范：config.objective_brief 是教师对学生卡点、期望表现、必用方法和评价证据的原始意图；"
+        "必须贯穿案例、讨论题和评价设计。若教师已编辑 learning_objectives，以编辑后的目标为最高优先级，不得静默替换。\n"
     )
     specs = {
         "CasePlanner": (

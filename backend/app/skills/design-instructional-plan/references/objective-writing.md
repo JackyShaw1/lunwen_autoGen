@@ -2,6 +2,15 @@
 
 Write each objective as: observable action + case object + reasoning method + assessable product or standard.
 
+When guiding a teacher, ask four plain-language questions instead of asking for a “good prompt”:
+
+1. Where are learners currently stuck?
+2. What should learners be able to do after class?
+3. Which course concepts or methods must they use?
+4. What visible product or performance will prove learning?
+
+The teacher may answer only part of the brief. Show the missing dimensions and improve the objectives without overwriting later teacher edits.
+
 Select the reasoning framework:
 
 - Pyramid principle: decision, comparison, recommendation, or structured argument tasks.

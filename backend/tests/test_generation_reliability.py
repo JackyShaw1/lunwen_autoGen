@@ -18,6 +18,7 @@ from app.services.package_builder import (
 )
 from app.services.grounded_case_service import generation_preflight_error
 from app.services.video_service import search_official_videos
+from app.services.objective_generator import generate_objectives
 from app.services.skill_loader import validate_package_with_skill
 
 
@@ -46,6 +47,29 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_objective_brief_turns_teacher_intent_into_observable_goals(self) -> None:
+        result = generate_objectives({
+            "title": "制造企业数字化转型中的组织阻力",
+            "subject": "管理学",
+            "course_name": "组织行为学",
+            "case_type": "问题诊断",
+            "difficulty": "中级",
+            "target_audience": "本科",
+            "variant": 0,
+            "objective_brief": {
+                "learning_challenge": "学生会背理论但不会用证据解释组织阻力",
+                "desired_performance": "比较两种干预方案并作出有依据的选择",
+                "required_concepts": "组织变革阻力与系统反馈",
+                "assessment_evidence": "一张因果关系图和三分钟小组答辩",
+            },
+        })
+        self.assertEqual(result["quality_score"], 100)
+        self.assertEqual(len(result["objectives"]), 3)
+        self.assertIn("学生会背理论", result["objectives"][0])
+        self.assertIn("组织变革阻力与系统反馈", result["objectives"][1])
+        self.assertIn("因果关系图", result["objectives"][2])
+        self.assertTrue(all(item["passed"] for item in result["quality_checks"]))
+
     def test_strict_teacher_brief_uses_reviewed_sources_and_never_fictional_template(self) -> None:
         task = make_task(1)
         task.learning_objectives = [

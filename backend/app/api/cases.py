@@ -130,6 +130,10 @@ def create_case(
         config["class_hours"] = body.class_hours
     if body.special_requirements:
         config["special_requirements"] = body.special_requirements
+    if body.objective_brief:
+        brief = body.objective_brief.model_dump()
+        if any(str(value).strip() for value in brief.values()):
+            config["objective_brief"] = brief
 
     task = CaseTask(
         user_id=user.id,

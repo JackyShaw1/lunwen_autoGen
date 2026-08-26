@@ -1,4 +1,4 @@
-import type { CaseTask, CasePackage, DashboardStats, CreateCasePayload, StatsRange, VideoResource, VisualAsset } from '@/types/case'
+import type { CaseTask, CasePackage, DashboardStats, CreateCasePayload, ObjectiveBrief, StatsRange, VideoResource, VisualAsset } from '@/types/case'
 import { api } from '@/lib/api-client'
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
@@ -89,6 +89,9 @@ export interface ObjectiveSuggestion {
   framework_name: string
   rationale: string
   objectives: string[]
+  brief_summary: string
+  quality_score: number
+  quality_checks: Array<{ key: string; label: string; passed: boolean; hint: string }>
 }
 
 export async function suggestLearningObjectives(payload: {
@@ -99,6 +102,7 @@ export async function suggestLearningObjectives(payload: {
   difficulty: string
   target_audience: string
   variant: number
+  objective_brief?: ObjectiveBrief
 }): Promise<ObjectiveSuggestion> {
   const { data } = await api.post<ObjectiveSuggestion>('/cases/suggest-objectives', payload)
   return data

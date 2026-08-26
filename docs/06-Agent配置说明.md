@@ -256,6 +256,8 @@ limits:
 
 每次生成会把 Agent 对应的 Skill 名称、修订号和所选参考资料写入 `meta.skill_trace`，方便追溯线上案例使用了哪套方法。
 
+`design-instructional-plan` 同时负责目标简报解释。教师无需写自由 Prompt，只回答学生卡点、课后表现、必用知识方法和评价证据；简报随任务上下文进入 Planner、Writer 和 PedagogyDesigner。Agent 必须忠实使用该意图，但教师手工修改后的 `learning_objectives` 优先级更高。
+
 ---
 
 ## 7. 学科插件包：同一 Agent 如何适配不同学科

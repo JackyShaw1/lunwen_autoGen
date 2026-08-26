@@ -41,6 +41,11 @@ def generate_objectives(context: dict[str, Any]) -> dict[str, Any]:
     audience = str(context.get("target_audience") or "本科").strip()
     difficulty = str(context.get("difficulty") or "中级").strip()
     variant = max(int(context.get("variant") or 0), 0)
+    brief = context.get("objective_brief") or {}
+    challenge = str(brief.get("learning_challenge") or "").strip()[:160]
+    performance = str(brief.get("desired_performance") or "").strip()[:160]
+    concepts = str(brief.get("required_concepts") or "").strip()[:160]
+    assessment = str(brief.get("assessment_evidence") or "").strip()[:160]
     framework = select_framework(title, case_type)
     framework_name, rationale = FRAMEWORK_META[framework]
     actors, evidence, action = _subject_focus(subject)
@@ -69,7 +74,43 @@ def generate_objectives(context: dict[str, Any]) -> dict[str, Any]:
         ],
     }
     objectives = variants[framework][variant % len(variants[framework])]
-    return {"framework": framework, "framework_name": framework_name, "rationale": rationale, "objectives": objectives}
+    if challenge:
+        objectives[0] = objectives[0].rstrip("。") + f"，重点解释“{challenge}”。"
+    if concepts:
+        objectives[1] = objectives[1].rstrip("。") + f"，并显式运用“{concepts}”形成证据链。"
+    if performance or assessment:
+        additions: list[str] = []
+        if performance:
+            additions.append(f"达到“{performance}”的课堂表现")
+        if assessment:
+            additions.append(f"以“{assessment}”作为可评价产出")
+        objectives[2] = objectives[2].rstrip("。") + "，" + "，并".join(additions) + "。"
+
+    checks = [
+        {"key": "context", "label": "课程情境清楚", "passed": bool(title and course), "hint": "已由步骤1提供课程与案例主题"},
+        {"key": "challenge", "label": "说明学生卡点", "passed": bool(challenge), "hint": "写学生目前只能做什么、还不会做什么"},
+        {"key": "performance", "label": "描述课后表现", "passed": bool(performance), "hint": "使用分析、比较、论证、设计等可观察动作"},
+        {"key": "concepts", "label": "指定知识方法", "passed": bool(concepts), "hint": "填写本课必须使用的概念、模型或思维工具"},
+        {"key": "assessment", "label": "给出评价证据", "passed": bool(assessment), "hint": "例如决策备忘录、因果图、方案答辩或计算结果"},
+    ]
+    weights = {"context": 20, "challenge": 20, "performance": 25, "concepts": 20, "assessment": 15}
+    quality_score = sum(weights[item["key"]] for item in checks if item["passed"])
+    summary_parts = [
+        f"面向{audience}《{course}》课程",
+        f"解决“{challenge}”" if challenge else "围绕当前案例主题建立学习进阶",
+        f"期望学生能够{performance}" if performance else "形成可观察的分析与决策能力",
+        f"使用{concepts}" if concepts else f"使用{framework_name}",
+        f"以{assessment}验收" if assessment else "通过课堂证据进行评价",
+    ]
+    return {
+        "framework": framework,
+        "framework_name": framework_name,
+        "rationale": rationale,
+        "objectives": objectives,
+        "brief_summary": "；".join(summary_parts) + "。",
+        "quality_score": quality_score,
+        "quality_checks": checks,
+    }
 
 
 def validate_objectives(objectives: list[str]) -> list[str]:
