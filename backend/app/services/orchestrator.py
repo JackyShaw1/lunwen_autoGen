@@ -523,20 +523,18 @@ def _run_agent_mock(agent: str, task: CaseTask, package: dict[str, Any]) -> tupl
 
 
 def _package_focus(agent: str, package: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]:
-    """给前端右侧面板的可读切片，避免一次推送过大。"""
+    """给教师端的可读结果切片；不得携带 Agent 原始 JSON。"""
     body = package.get("body") or {}
     if agent == "CasePlanner":
         return {
             "learning_objectives": package.get("learning_objectives", []),
             "decision_point": body.get("decision_point"),
             "characters": body.get("characters", []),
-            "agent_output": output,
         }
     if agent == "DomainExpert":
         return {
             "background": (body.get("background") or "")[:800],
             "domain_notes": output.get("domain_notes") or output.get("terminology"),
-            "agent_output": output,
         }
     if agent == "CaseWriter":
         return {
@@ -544,21 +542,29 @@ def _package_focus(agent: str, package: dict[str, Any], output: dict[str, Any]) 
             "narrative": (body.get("narrative") or "")[:1200],
             "decision_point": body.get("decision_point"),
             "characters": body.get("characters", []),
-            "agent_output": output,
         }
     if agent == "PedagogyDesigner":
         return {
             "discussion_questions": package.get("discussion_questions", []),
             "instructor_guide": package.get("instructor_guide", {}),
             "alignment_matrix": package.get("alignment_matrix", []),
-            "agent_output": output,
         }
     if agent == "Reviewer":
         return {
             "quality": package.get("quality", {}),
-            "agent_output": output,
         }
-    return {"agent_output": output}
+    return {}
+
+
+def _agent_progress_text(agent: str) -> str:
+    messages = {
+        "CasePlanner": "正在梳理课程情境、教学目标、角色关系和核心决策任务…",
+        "DomainExpert": "正在核对学科概念、专业机制、证据要求和事实边界…",
+        "CaseWriter": "正在形成案例背景、关键事件、冲突升级和决策点…",
+        "PedagogyDesigner": "正在设计课堂流程、分层讨论题和目标评价方式…",
+        "Reviewer": "正在检查学科真实性、目标对齐、正文结构和教学可用性…",
+    }
+    return messages.get(agent, "正在形成本步骤结果…")
 
 
 def focus_to_plain_text(agent: str, focus: dict[str, Any] | None) -> str:
@@ -815,12 +821,6 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                 "agent": agent,
                 "status": "running",
                 "summary": AGENT_HINTS[agent],
-                "input": {
-                    "task": task_meta,
-                    "hint": AGENT_HINTS[agent],
-                    "skills": agent_skills,
-                },
-                "output": None,
                 "focus": None,
                 "duration_ms": None,
                 "token_usage": None,
@@ -884,7 +884,8 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                     return
                 last_push["t"] = now
                 last_push["n"] = len(acc)
-                preview = f"【{current_agent} 模型输出中】\n\n{acc}"
+                # 模型正在返回 JSON，但教师端只展示业务进度；原始协议数据不得透出。
+                preview = _agent_progress_text(current_agent)
                 await _publish_state(
                     task_id,
                     agents_state,
@@ -965,8 +966,6 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                 "agent": agent,
                 "status": "completed",
                 "summary": summary,
-                "input": {"task": task_meta, "hint": AGENT_HINTS[agent], "skills": agent_skills},
-                "output": data if isinstance(data, dict) else {"raw": data},
                 "focus": focus,
                 "duration_ms": max(duration_ms, 1),
                 "token_usage": tokens,

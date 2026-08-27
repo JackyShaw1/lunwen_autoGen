@@ -215,11 +215,6 @@ export interface AgentStepResult {
   agent: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   summary?: string
-  input?: {
-    task?: Record<string, unknown>
-    hint?: string
-  }
-  output?: Record<string, unknown> | null
   focus?: Record<string, unknown> | null
   duration_ms?: number | null
   token_usage?: number | null

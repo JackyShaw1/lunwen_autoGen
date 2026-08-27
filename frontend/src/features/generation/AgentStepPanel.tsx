@@ -1,18 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { AgentProgressMessage, AgentStepResult } from '@/types/case'
 import { AGENT_LABELS } from './AgentPipeline'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
-import { cn } from '@/lib/utils'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-3">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</div>
-      <div className="text-sm text-gray-700">{children}</div>
-    </div>
-  )
-}
 
 /** 将各 Agent 的 focus 转为可读纯文本（回看已完成步骤用） */
 export function focusToStreamText(agent: string, focus?: Record<string, unknown> | null): string {
@@ -91,7 +81,7 @@ export function focusToStreamText(agent: string, focus?: Record<string, unknown>
     ].join('\n')
   }
 
-  return JSON.stringify(focus, null, 2)
+  return '本步骤已完成，请查看节点结果摘要。'
 }
 
 function ThinkingStream({ agent }: { agent: string }) {
@@ -109,7 +99,6 @@ function ThinkingStream({ agent }: { agent: string }) {
 export function AgentStepPanel({
   selectedAgent,
   stepResults,
-  taskMeta,
   stream,
 }: {
   selectedAgent?: string
@@ -117,8 +106,6 @@ export function AgentStepPanel({
   taskMeta?: Record<string, unknown>
   stream?: AgentProgressMessage['stream']
 }) {
-  const [tab, setTab] = useState<'preview' | 'input' | 'json'>('preview')
-
   const step = useMemo(
     () => stepResults.find((s) => s.agent === selectedAgent) || stepResults[stepResults.length - 1],
     [stepResults, selectedAgent],
@@ -132,7 +119,7 @@ export function AgentStepPanel({
   const previewText = isLiveStreaming ? stream!.text : focusText
   const showCursor = isLiveStreaming && !stream!.done
 
-  if (!step && !taskMeta) {
+  if (!step) {
     return (
       <Card className="sticky top-6 h-fit min-h-[320px] p-5">
         <h3 className="font-semibold text-gray-800">步骤过程数据</h3>
@@ -163,75 +150,25 @@ export function AgentStepPanel({
           {showCursor && <span className="text-primary">流式输出中</span>}
           {!showCursor && previewText && step?.status === 'completed' && <span>全文已就绪</span>}
         </div>
-        <div className="mt-3 flex gap-1">
-          {(
-            [
-              ['preview', '过程预览'],
-              ['input', '任务输入'],
-              ['json', '原始 JSON'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-xs',
-                tab === id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <div className="mt-3 text-xs font-semibold text-primary">过程结果</div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {tab === 'preview' && (
-          <div>
-            {step?.status === 'running' && !previewText && <ThinkingStream agent={agentName} />}
-            {previewText ? (
-              <div className="mt-1 rounded-lg border border-gray-100 bg-white p-3 shadow-sm">
-                <pre className="whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-gray-700">
-                  {previewText}
-                  {showCursor && (
-                    <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-primary align-middle" />
-                  )}
-                </pre>
-              </div>
-            ) : (
-              step?.status !== 'running' && (
-                <p className="text-sm text-gray-500">该步骤暂无预览数据</p>
-              )
-            )}
-          </div>
-        )}
-
-        {tab === 'input' && (
-          <div className="space-y-3 text-sm">
-            {step?.input?.hint && <Field label="Agent 职责">{step.input.hint}</Field>}
-            <Field label="教师任务参数">
-              <pre className="overflow-x-auto rounded-lg bg-gray-50 p-3 text-[11px] leading-relaxed text-gray-700">
-                {JSON.stringify(step?.input?.task || taskMeta || {}, null, 2)}
+        <div>
+          {step?.status === 'running' && !previewText && <ThinkingStream agent={agentName} />}
+          {previewText ? (
+            <div className="mt-1 rounded-lg border border-gray-100 bg-white p-3 shadow-sm">
+              <pre className="whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-gray-700">
+                {previewText}
+                {showCursor && (
+                  <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-primary align-middle" />
+                )}
               </pre>
-            </Field>
-          </div>
-        )}
-
-        {tab === 'json' && (
-          <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-relaxed text-emerald-200">
-            {JSON.stringify(
-              {
-                summary: step?.summary,
-                focus: step?.focus,
-                output: step?.output,
-                stream: isLiveStreaming ? stream : undefined,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        )}
+            </div>
+          ) : (
+            step?.status !== 'running' && <p className="text-sm text-gray-500">该步骤暂无结果</p>
+          )}
+        </div>
       </div>
     </Card>
   )

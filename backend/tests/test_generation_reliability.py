@@ -11,7 +11,13 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import CasePackage, CaseTask, SystemMeta, User
 from app.seed import _recover_interrupted_generation_tasks
-from app.services.orchestrator import _canonicalize_agent_output, _task_context, _validate_agent_output
+from app.services.orchestrator import (
+    _agent_progress_text,
+    _canonicalize_agent_output,
+    _package_focus,
+    _task_context,
+    _validate_agent_output,
+)
 from app.services.package_builder import (
     build_structured_package,
     build_teaching_flow,
@@ -58,6 +64,15 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_teacher_progress_payload_never_contains_raw_agent_json(self) -> None:
+        task = make_task(2)
+        package = build_structured_package(task)
+        raw_output = {"private_protocol_field": {"nested": "raw-json"}}
+        focus = _package_focus("CasePlanner", package, raw_output)
+        self.assertNotIn("agent_output", focus)
+        self.assertNotIn("private_protocol_field", json.dumps(focus, ensure_ascii=False))
+        self.assertNotIn("{", _agent_progress_text("CasePlanner"))
+
     def test_planner_field_drift_preserves_teacher_contract(self) -> None:
         task = make_task(2)
         package = build_structured_package(task)
