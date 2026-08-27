@@ -15,6 +15,7 @@ from app.models import CasePackage, CaseTask, SystemMeta, User
 from app.seed import _recover_interrupted_generation_tasks
 from app.services.orchestrator import (
     _agent_progress_text,
+    _business_summary,
     _canonicalize_agent_output,
     _package_focus,
     _task_context,
@@ -69,6 +70,20 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_agent_business_summaries_never_expose_json_protocol(self) -> None:
+        task = make_task(2)
+        package = build_structured_package(task)
+        for agent in ("CasePlanner", "DomainExpert", "CaseWriter", "PedagogyDesigner", "Reviewer"):
+            summary = _business_summary(
+                agent,
+                package,
+                task,
+                '{"outline": {"raw": "protocol"}}',
+            )
+            self.assertNotIn("{", summary)
+            self.assertNotIn('"outline"', summary)
+            self.assertIn("完成" if agent != "CaseWriter" else "验收", summary)
+
     def test_readable_process_result_is_streamed_incrementally(self) -> None:
         publish = AsyncMock()
         with (

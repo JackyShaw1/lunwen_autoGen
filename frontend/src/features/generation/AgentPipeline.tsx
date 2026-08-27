@@ -12,6 +12,20 @@ export const AGENT_LABELS: Record<string, string> = {
   TeacherProxy: '任务代理',
 }
 
+/** 兼容历史任务：旧版本曾把模型 JSON 截断后作为摘要保存，展示前统一拦截。 */
+export function readableAgentSummary(agent: string, summary?: string): string {
+  if (!summary) return ''
+  const value = summary.trim()
+  const looksLikeProtocol =
+    value.startsWith('{') ||
+    value.startsWith('[') ||
+    /"(?:outline|learning_objectives|domain_notes|background|narrative|quality)"\s*:/.test(value)
+  if (looksLikeProtocol) {
+    return `${AGENT_LABELS[agent] || '当前'}阶段结果已生成，请在右侧查看可读预览。`
+  }
+  return value
+}
+
 function StepIcon({ status }: { status: AgentProgressItem['status'] }) {
   if (status === 'completed') {
     return <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">✓</div>
@@ -84,7 +98,7 @@ export function AgentPipeline({
               </div>
               {agent.output_summary && (
                 <p className="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 line-clamp-3">
-                  {agent.output_summary}
+                  {readableAgentSummary(agent.name, agent.output_summary)}
                 </p>
               )}
               {agent.status === 'running' && agent.progress != null && (

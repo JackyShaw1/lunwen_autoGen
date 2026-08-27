@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentProgressMessage, AgentStepResult } from '@/types/case'
-import { AGENT_LABELS } from './AgentPipeline'
+import { AGENT_LABELS, readableAgentSummary } from './AgentPipeline'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 
@@ -96,6 +96,49 @@ function ThinkingStream({ agent }: { agent: string }) {
   )
 }
 
+/**
+ * 服务端 WebSocket 和 HTTP 轮询都只负责更新目标文本；逐字动画由浏览器完成。
+ * 因此即使代理网关合并了数据帧，教师仍能看到稳定、连续的打字效果。
+ */
+function useTypewriter(target: string, resetKey: string, enabled: boolean): string {
+  const [displayed, setDisplayed] = useState(enabled ? '' : target)
+  const displayedRef = useRef(displayed)
+  const targetRef = useRef(target)
+
+  useEffect(() => {
+    targetRef.current = target
+    if (!enabled) {
+      displayedRef.current = target
+      setDisplayed(target)
+      return
+    }
+    if (!target.startsWith(displayedRef.current)) {
+      displayedRef.current = ''
+      setDisplayed('')
+    }
+  }, [target, enabled])
+
+  useEffect(() => {
+    if (!enabled) return
+    displayedRef.current = ''
+    setDisplayed('')
+    const timer = window.setInterval(() => {
+      const goal = targetRef.current
+      let current = displayedRef.current
+      if (!goal.startsWith(current)) current = ''
+      if (current.length >= goal.length) return
+      const remaining = goal.length - current.length
+      const chars = remaining > 600 ? 10 : remaining > 240 ? 6 : remaining > 80 ? 3 : 1
+      const next = goal.slice(0, current.length + chars)
+      displayedRef.current = next
+      setDisplayed(next)
+    }, 20)
+    return () => window.clearInterval(timer)
+  }, [enabled, resetKey])
+
+  return displayed
+}
+
 export function AgentStepPanel({
   selectedAgent,
   stepResults,
@@ -116,8 +159,11 @@ export function AgentStepPanel({
 
   // 当前选中 Agent 正在被后端流式推送 → 用 stream.text（真打字）
   const isLiveStreaming = !!stream && stream.agent === agentName
-  const previewText = isLiveStreaming ? stream!.text : focusText
-  const showCursor = isLiveStreaming && !stream!.done
+  const streamTarget = isLiveStreaming ? stream!.text : ''
+  const typedStreamText = useTypewriter(streamTarget, agentName, isLiveStreaming)
+  const previewText = isLiveStreaming ? typedStreamText : focusText
+  const showCursor =
+    isLiveStreaming && (!stream!.done || typedStreamText.length < streamTarget.length)
 
   if (!step) {
     return (
@@ -139,7 +185,9 @@ export function AgentStepPanel({
                 {AGENT_LABELS[agentName] || ''}
               </span>
             </h3>
-            <p className="mt-1 text-xs text-gray-500 line-clamp-2">{step?.summary || '等待产出…'}</p>
+            <p className="mt-1 text-xs text-gray-500 line-clamp-2">
+              {readableAgentSummary(agentName, step?.summary) || '等待产出…'}
+            </p>
           </div>
           {step?.status === 'completed' && <Badge variant="green">已完成</Badge>}
           {step?.status === 'running' && <Badge variant="yellow">生成中</Badge>}

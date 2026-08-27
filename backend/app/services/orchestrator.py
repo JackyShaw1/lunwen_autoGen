@@ -620,6 +620,38 @@ def _package_focus(agent: str, package: dict[str, Any], output: dict[str, Any]) 
     return {}
 
 
+def _business_summary(
+    agent: str,
+    package: dict[str, Any],
+    task: CaseTask,
+    previous_summary: str = "",
+) -> str:
+    """生成教师可读的阶段摘要，绝不把模型 JSON 协议暴露到界面。"""
+    body = package.get("body") or {}
+    recovered = "自动恢复" in previous_summary
+    suffix = "；模型格式波动已自动恢复，阶段结果不受影响" if recovered else ""
+
+    if agent == "CasePlanner":
+        objectives = package.get("learning_objectives") or []
+        characters = body.get("characters") or []
+        summary = f"结构策划完成：已明确 {len(objectives)} 条教学目标、{len(characters)} 个关键角色及核心决策点"
+    elif agent == "DomainExpert":
+        required = ((package.get("case_blueprint") or {}).get("required_elements") or [])
+        summary = f"学科校验完成：已核对专业机制、事实边界与 {len(required)} 项学科要素"
+    elif agent == "CaseWriter":
+        actual = int(((package.get("meta") or {}).get("actual_words") or count_case_body_chars(package)))
+        summary = f"案例正文已通过验收：实际 {actual} 字 / 目标 {task.target_words} 字"
+    elif agent == "PedagogyDesigner":
+        questions = package.get("discussion_questions") or []
+        summary = f"教学设计完成：已形成课堂流程及 {len(questions)} 道分层讨论题"
+    elif agent == "Reviewer":
+        quality = package.get("quality") or {}
+        summary = f"质量评审完成：综合评分 {quality.get('overall_score', '—')}/5，真实性、结构与目标对齐已检查"
+    else:
+        summary = "本阶段业务结果已生成"
+    return summary + suffix
+
+
 def _agent_progress_text(agent: str) -> str:
     messages = {
         "CasePlanner": "正在梳理课程情境、教学目标、角色关系和核心决策任务…",
@@ -1041,6 +1073,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
 
             duration_ms = int((time.perf_counter() - t0) * 1000)
             focus = _package_focus(agent, package, data if isinstance(data, dict) else {"raw": data})
+            summary = _business_summary(agent, package, task, summary)
             # 模型返回的是 JSON 协议，不能直接给教师看；契约验收通过后，
             # 将结构化数据转为可读业务结果，再逐步推送形成真实打字效果。
             typing_agents_state = _build_agents_state(
