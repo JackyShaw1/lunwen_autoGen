@@ -19,6 +19,7 @@ from app.services.orchestrator import (
     _package_focus,
     _task_context,
     _run_agent_llm,
+    _stream_preview_text,
     _validate_agent_output,
 )
 from app.services.package_builder import (
@@ -68,6 +69,29 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_readable_process_result_is_streamed_incrementally(self) -> None:
+        publish = AsyncMock()
+        with (
+            patch("app.services.orchestrator._publish_state", new=publish),
+            patch("app.services.orchestrator.asyncio.sleep", new=AsyncMock()),
+        ):
+            asyncio.run(
+                _stream_preview_text(
+                    "task-1",
+                    "CasePlanner",
+                    "这是可读的过程结果",
+                    [],
+                    18,
+                    [],
+                    {},
+                )
+            )
+        frames = [call.kwargs["stream"] for call in publish.await_args_list]
+        self.assertGreater(len(frames), 2)
+        self.assertLess(len(frames[0]["text"]), len(frames[-1]["text"]))
+        self.assertFalse(frames[0]["done"])
+        self.assertTrue(frames[-1]["done"])
+
     def test_grounded_casewriter_citation_validation_executes(self) -> None:
         task = make_task(2)
         task.config = {"auto_research_pack": {"sources": [{"id": "S1"}]}}

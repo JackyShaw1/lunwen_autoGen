@@ -994,21 +994,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                     db, agent, task, package, on_delta=_push_llm_delta
                 )
             else:
-                # Mock：边“生成”边流式打出结构化预览
                 data, summary, tokens = _run_agent_mock(agent, task, package)
-                package_tmp = merge_agent_output(dict(package), agent, data)
-                if agent == "Reviewer":
-                    score_package(package_tmp)
-                focus_tmp = _package_focus(agent, package_tmp, data if isinstance(data, dict) else {"raw": data})
-                await _stream_preview_text(
-                    task_id,
-                    agent,
-                    focus_to_plain_text(agent, focus_tmp),
-                    agents_state,
-                    overall_base,
-                    step_results,
-                    task_meta,
-                )
 
             package = merge_agent_output(package, agent, data)
             if agent == "PedagogyDesigner":
@@ -1055,6 +1041,23 @@ async def run_pipeline(db: Session, task_id: str) -> None:
 
             duration_ms = int((time.perf_counter() - t0) * 1000)
             focus = _package_focus(agent, package, data if isinstance(data, dict) else {"raw": data})
+            # 模型返回的是 JSON 协议，不能直接给教师看；契约验收通过后，
+            # 将结构化数据转为可读业务结果，再逐步推送形成真实打字效果。
+            typing_agents_state = _build_agents_state(
+                idx,
+                agent,
+                95 if agent == "CaseWriter" else None,
+                step_map=step_map,
+            )
+            await _stream_preview_text(
+                task_id,
+                agent,
+                focus_to_plain_text(agent, focus),
+                typing_agents_state,
+                min(int((idx + 0.9) / total * 100), 99),
+                step_results,
+                task_meta,
+            )
             completed_step = {
                 "agent": agent,
                 "status": "completed",
