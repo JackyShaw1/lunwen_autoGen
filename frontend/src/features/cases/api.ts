@@ -276,7 +276,7 @@ export async function testModelConfig() {
 
 export interface ResearchConfig {
   enabled: boolean
-  provider: 'tavily'
+  provider: string
   api_key_configured: boolean
   api_key_masked: string
   available: boolean
@@ -284,11 +284,6 @@ export interface ResearchConfig {
 
 export async function fetchResearchConfig() {
   const { data } = await api.get<ResearchConfig>('/admin/research-config')
-  return data
-}
-
-export async function updateResearchConfig(payload: { enabled: boolean; provider: 'tavily'; api_key?: string }) {
-  const { data } = await api.put<ResearchConfig>('/admin/research-config', payload)
   return data
 }
 

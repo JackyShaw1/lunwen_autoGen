@@ -1,10 +1,28 @@
 name: case-autogen
 
 services:
+  searxng:
+    image: searxng/searxng@sha256:11a9b34cdc0b1ec2b991470a2762ecb5a1a531898289fb51dcd015260450729e
+    restart: unless-stopped
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_SECRET: ${SECRET_KEY}
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   backend:
     build:
       context: ./backend
     restart: unless-stopped
+    depends_on:
+      searxng:
+        condition: service_started
     env_file:
       - ./.env
     environment:
@@ -12,6 +30,7 @@ services:
       BACKEND_PORT: "8010"
       COOKIE_SECURE: "true"
       PYTHONUNBUFFERED: "1"
+      SEARXNG_URL: http://searxng:8080
     volumes:
       - ./backend/data:/app/data
       - ./uploads:/app/uploads

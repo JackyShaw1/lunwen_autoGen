@@ -11,7 +11,6 @@ import {
   testModelConfig,
   testResearchConfig,
   updateModelConfig,
-  updateResearchConfig,
 } from '@/features/cases/api'
 
 function errorDetail(error: unknown, fallback: string) {
@@ -27,8 +26,6 @@ export default function ModelConfig() {
   const [model, setModel] = useState('gpt-4o')
   const [apiKey, setApiKey] = useState('')
   const [message, setMessage] = useState('')
-  const [researchEnabled, setResearchEnabled] = useState(false)
-  const [researchKey, setResearchKey] = useState('')
   const [researchMessage, setResearchMessage] = useState('')
   const query = useQuery({ queryKey: ['admin-model-config'], queryFn: fetchModelConfig })
   const researchQuery = useQuery({ queryKey: ['admin-research-config'], queryFn: fetchResearchConfig })
@@ -39,10 +36,6 @@ export default function ModelConfig() {
     setApiBase(query.data.api_base)
     setModel(query.data.model)
   }, [query.data])
-
-  useEffect(() => {
-    if (researchQuery.data) setResearchEnabled(researchQuery.data.enabled)
-  }, [researchQuery.data])
 
   const save = useMutation({
     mutationFn: () =>
@@ -66,19 +59,6 @@ export default function ModelConfig() {
     onError: (error) => setMessage(errorDetail(error, '连接测试失败')),
   })
 
-  const saveResearch = useMutation({
-    mutationFn: () => updateResearchConfig({
-      enabled: researchEnabled,
-      provider: 'tavily',
-      ...(researchKey.trim() ? { api_key: researchKey.trim() } : {}),
-    }),
-    onSuccess: async () => {
-      setResearchKey('')
-      setResearchMessage('自动资料研究配置已保存。')
-      await qc.invalidateQueries({ queryKey: ['admin-research-config'] })
-    },
-    onError: (error) => setResearchMessage(errorDetail(error, '研究配置保存失败')),
-  })
   const testResearch = useMutation({
     mutationFn: testResearchConfig,
     onSuccess: (data) => setResearchMessage(data.message),
@@ -177,24 +157,16 @@ export default function ModelConfig() {
               </div>
               <p className="mt-1 text-sm text-slate-500">真实案例生成前自动检索约 10 条来源、提取证据并绑定引用，教师无需自行找资料。</p>
             </div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input type="checkbox" className="h-5 w-5 accent-indigo-600" checked={researchEnabled} onChange={(e) => setResearchEnabled(e.target.checked)} />
-              启用
-            </label>
+            <Badge variant={researchQuery.data?.available ? 'green' : 'gray'}>{researchQuery.data?.available ? '内置启用' : '服务异常'}</Badge>
           </div>
           <div>
-            <Label htmlFor="research-provider">检索服务</Label>
-            <Input id="research-provider" value="Tavily Search" readOnly />
-          </div>
-          <div>
-            <Label htmlFor="research-key">Tavily API Key</Label>
-            <Input id="research-key" type="password" autoComplete="new-password" value={researchKey} onChange={(e) => setResearchKey(e.target.value)} placeholder={researchQuery.data?.api_key_configured ? '已配置；留空表示保持不变' : 'tvly-…'} />
-            <p className="mt-1 text-xs text-slate-500">由管理员一次配置；密钥加密保存。检索结果仍会经过来源分级和引用校验。</p>
+            <Label>检索方式</Label>
+            <Input value="项目内置 SearXNG 中文元搜索" readOnly />
+            <p className="mt-1 text-xs text-slate-500">运行在项目内部 Docker 网络，不对公网开放，不需要第三方搜索 API Key。</p>
           </div>
           {researchMessage && <p className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">{researchMessage}</p>}
           <div className="flex gap-3">
-            <Button onClick={() => saveResearch.mutate()} disabled={saveResearch.isPending}>{saveResearch.isPending ? '保存中…' : '保存研究配置'}</Button>
-            <Button variant="outline" onClick={() => testResearch.mutate()} disabled={testResearch.isPending || !researchQuery.data?.api_key_configured}>{testResearch.isPending ? '测试中…' : '测试研究连接'}</Button>
+            <Button variant="outline" onClick={() => testResearch.mutate()} disabled={testResearch.isPending}>{testResearch.isPending ? '测试中…' : '测试内置检索'}</Button>
           </div>
         </Card>
       </div>

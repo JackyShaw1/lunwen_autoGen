@@ -6,13 +6,12 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user, load_agent_yaml_files, require_admin
 from app.models import AgentConfig, User
-from app.schemas import AgentConfigOut, AgentConfigUpdate, ModelConfigOut, ModelConfigUpdate, ResearchConfigOut, ResearchConfigUpdate
+from app.schemas import AgentConfigOut, AgentConfigUpdate, ModelConfigOut, ModelConfigUpdate, ResearchConfigOut
 from app.services.runtime_model_service import (
     get_active_model_config,
     get_masked_model_config,
     save_model_config,
 )
-from app.services.runtime_research_service import get_research_config, masked_research_config, save_research_config
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -26,32 +25,37 @@ AGENT_ORDER = [
 
 
 @router.get("/research-config", response_model=ResearchConfigOut)
-def read_research_config(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    return masked_research_config(db)
-
-
-@router.put("/research-config", response_model=ResearchConfigOut)
-def update_research_config(body: ResearchConfigUpdate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    return save_research_config(db, enabled=body.enabled, provider=body.provider, api_key=body.api_key)
+async def read_research_config(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    available = False
+    if settings.searxng_url:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(f"{settings.searxng_url.rstrip('/')}/healthz")
+                available = response.status_code < 400
+        except httpx.HTTPError:
+            pass
+    return {
+        "enabled": True, "provider": "self_hosted_searxng",
+        "api_key_configured": False, "api_key_masked": "", "available": available,
+    }
 
 
 @router.post("/research-config/test")
 async def test_research_config(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    config = get_research_config(db)
-    if not config.api_key:
-        raise HTTPException(400, "请先保存自动研究 API Key")
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                headers={"Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json"},
-                json={"query": "中国 教育 官方", "max_results": 1, "search_depth": "basic"},
+            response = await client.get(
+                f"{settings.searxng_url.rstrip('/')}/search",
+                params={"q": "中国 教育 官方", "format": "json", "language": "zh-CN"},
             )
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"自动研究服务连接失败：{type(exc).__name__}") from None
     if response.status_code >= 400:
-        raise HTTPException(response.status_code, f"自动研究服务返回 HTTP {response.status_code}")
-    return {"success": True, "message": "自动研究服务连接成功"}
+        raise HTTPException(response.status_code, f"内置检索服务返回 HTTP {response.status_code}")
+    result_count = len(response.json().get("results") or [])
+    if result_count == 0:
+        raise HTTPException(502, "内置检索服务已启动，但当前没有搜索结果，请检查上游搜索引擎网络")
+    return {"success": True, "message": f"内置中文检索服务正常，本次返回 {result_count} 条结果"}
 
 
 @router.get("/model-config", response_model=ModelConfigOut)

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     openai_api_base: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o"
     use_mock_generation: bool = True
+    searxng_url: str = "http://searxng:8080"
 
     reviewer_pass_threshold: float = 4.0
     hours_saved_per_case: int = 8

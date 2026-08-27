@@ -222,12 +222,6 @@ class ModelConfigOut(BaseModel):
     source: str
 
 
-class ResearchConfigUpdate(BaseModel):
-    enabled: bool = False
-    provider: Literal["tavily"] = "tavily"
-    api_key: str | None = Field(default=None, max_length=500)
-
-
 class ResearchConfigOut(BaseModel):
     enabled: bool
     provider: str
