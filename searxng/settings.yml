@@ -1,4 +1,12 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    keep_only:
+      - 360search
+      - baidu
+      - sogou
+      - quark
+      - bing
+      - duckduckgo
 
 general:
   instance_name: "CaseAutoGen 内置检索"
@@ -24,3 +32,24 @@ ui:
 outgoing:
   request_timeout: 8.0
   max_request_timeout: 15.0
+
+engines:
+  - name: 360search
+    disabled: false
+    weight: 2
+  - name: baidu
+    disabled: false
+    weight: 2
+  - name: sogou
+    disabled: false
+    weight: 2
+  - name: quark
+    disabled: false
+    weight: 2
+  - name: bing
+    disabled: false
+    weight: 1
+    base_url: https://cn.bing.com
+  - name: duckduckgo
+    disabled: false
+    weight: 1

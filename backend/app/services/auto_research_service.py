@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from urllib.parse import urlparse
 
 import httpx
@@ -38,25 +37,23 @@ async def build_auto_research_pack(task) -> dict:
     base_url = get_settings().searxng_url.rstrip("/")
     found: dict[str, dict] = {}
     async with httpx.AsyncClient(timeout=45.0) as client:
-        requests = [
-            client.get(
-                f"{base_url}/search",
-                params={
-                    "q": query,
-                    "format": "json",
-                    "language": "zh-CN",
-                    "safesearch": 1,
-                    "categories": "general",
-                },
-            )
-            for query in _queries(task)
-        ]
-        responses = await asyncio.gather(*requests, return_exceptions=True)
-        valid_responses = [response for response in responses if isinstance(response, httpx.Response)]
-        if not valid_responses:
-            error = next((item for item in responses if isinstance(item, Exception)), None)
-            raise RuntimeError(f"内置检索服务不可用：{type(error).__name__ if error else '未知错误'}")
-        for response in valid_responses:
+        responses: list[httpx.Response] = []
+        # 元搜索后端会对短时间并发请求限流；按可信来源优先级串行检索更稳定。
+        for query in _queries(task):
+            try:
+                response = await client.get(
+                    f"{base_url}/search",
+                    params={
+                        "q": query,
+                        "format": "json",
+                        "language": "zh-CN",
+                        "safesearch": 1,
+                        "categories": "general",
+                    },
+                )
+            except httpx.HTTPError:
+                continue
+            responses.append(response)
             if response.status_code >= 400:
                 continue
             for item in response.json().get("results") or []:
@@ -76,6 +73,8 @@ async def build_auto_research_pack(task) -> dict:
                     "credibility_tier": _credibility(url),
                     "search_engine": str(item.get("engine") or "searxng"),
                 })
+        if not responses:
+            raise RuntimeError("内置检索服务不可用：全部检索请求均未获得响应")
     candidates = sorted(found.values(), key=lambda item: item["credibility_tier"])
     # 先保证来源机构多样性，再用同一机构的其他有效材料补足 10 条。
     ranked: list[dict] = []
