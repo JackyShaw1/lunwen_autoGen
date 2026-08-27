@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import CasePackage, CaseTask, SystemMeta, User
 from app.seed import _recover_interrupted_generation_tasks
-from app.services.orchestrator import _task_context, _validate_agent_output
+from app.services.orchestrator import _canonicalize_agent_output, _task_context, _validate_agent_output
 from app.services.package_builder import (
     build_structured_package,
     build_teaching_flow,
@@ -19,7 +19,7 @@ from app.services.package_builder import (
     fit_teaching_flow_to_class_hours,
     normalize_case_package,
 )
-from app.services.grounded_case_service import generation_preflight_error
+from app.services.grounded_case_service import generation_preflight_error, requires_source_grounding
 from app.services.video_service import search_official_videos
 from app.services.objective_generator import generate_objectives
 from app.services.pptx_export_service import build_ppt_outline, export_pptx
@@ -58,6 +58,31 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_planner_field_drift_preserves_teacher_contract(self) -> None:
+        task = make_task(2)
+        package = build_structured_package(task)
+        malformed = {
+            "outline": {
+                "background": "有效背景",
+                "decision_point": "有效决策任务",
+                "characters": [{"name": "角色甲", "role": "负责人", "stance": "推进"}],
+            },
+            "learning_objectives": [{"objective": "模型错误地换了字段名"}],
+        }
+        normalized = _canonicalize_agent_output("CasePlanner", malformed, task, package)
+        self.assertEqual(
+            [item["description"] for item in normalized["learning_objectives"]],
+            task.learning_objectives,
+        )
+        self.assertGreaterEqual(len(normalized["outline"]["characters"]), 3)
+        self.assertEqual(_validate_agent_output("CasePlanner", normalized, task), [])
+
+    def test_real_enterprise_wording_triggers_source_grounding(self) -> None:
+        task = make_task(2)
+        task.config = {"special_requirements": "基于真实企业案例讲解，不要胡编乱造案例"}
+        self.assertTrue(requires_source_grounding(task))
+        self.assertIn("事实资料包", generation_preflight_error(task) or "")
+
     def test_runtime_model_key_is_encrypted_and_never_returned(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)

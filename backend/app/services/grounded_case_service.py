@@ -13,7 +13,7 @@ import yaml
 PROFILE_PATH = Path(__file__).resolve().parent.parent / "materials" / "grounded_case_profiles.yaml"
 STRICT_AUTHENTICITY_TERMS = (
     "不能虚假", "不得虚构", "禁止虚构", "不允许虚构", "切忌编造", "不要编造", "禁止编造",
-    "数据准确", "真实案例", "事实准确",
+    "不要胡编乱造", "胡编乱造", "数据准确", "真实案例", "真实企业案例", "基于真实企业", "事实准确",
 )
 
 

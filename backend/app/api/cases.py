@@ -22,7 +22,7 @@ from app.schemas import (
 from app.services.export_service import export_docx, export_pdf
 from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
 from app.services.llm_client import llm_available
-from app.services.orchestrator import consume_quota, run_generation
+from app.services.orchestrator import run_generation
 from app.services.objective_generator import generate_objectives
 from app.services.course_blueprint_service import build_case_blueprint, validate_approved_blueprint
 from app.services.package_builder import normalize_case_package
@@ -190,6 +190,10 @@ async def start_generate(
         raise HTTPException(400, f"当前任务状态不允许生成：{task.status}")
     preflight_error = generation_preflight_error(task)
     if preflight_error:
+        task.status = "failed"
+        task.error_message = preflight_error
+        task.updated_at = datetime.now(timezone.utc)
+        db.commit()
         raise HTTPException(400, preflight_error)
     blueprint = (task.config or {}).get("approved_blueprint") or {}
     if not llm_available() and not blueprint.get("exact_match") and not find_grounded_profile(task):
@@ -200,8 +204,42 @@ async def start_generate(
     if user.quota_remaining is not None and user.quota_remaining <= 0 and task.status == "draft":
         raise HTTPException(400, "生成配额已用尽")
 
-    if task.status == "draft":
-        consume_quota(db, user)
+    original_status = task.status
+    # 先原子占用任务再启动后台协程。React StrictMode、双击或网络重试可能并发
+    # 发出两次请求；没有这道条件更新会启动两条流水线并互相覆盖状态。
+    claimed = (
+        db.query(CaseTask)
+        .filter(
+            CaseTask.id == task_id,
+            CaseTask.user_id == user.id,
+            CaseTask.status == original_status,
+        )
+        .update(
+            {
+                "status": "running",
+                "error_message": None,
+                "updated_at": datetime.now(timezone.utc),
+            },
+            synchronize_session=False,
+        )
+    )
+    if claimed != 1:
+        db.rollback()
+        raise HTTPException(409, "任务已由另一请求启动，请勿重复提交")
+
+    if original_status == "draft" and user.quota_remaining is not None:
+        quota_claimed = (
+            db.query(User)
+            .filter(User.id == user.id, User.quota_remaining > 0)
+            .update(
+                {"quota_remaining": User.quota_remaining - 1},
+                synchronize_session=False,
+            )
+        )
+        if quota_claimed != 1:
+            db.rollback()
+            raise HTTPException(400, "生成配额已用尽")
+    db.commit()
 
     _spawn_generation(task_id)
     return {"message": "生成已启动", "task_id": task_id}

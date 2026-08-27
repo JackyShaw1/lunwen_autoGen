@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
@@ -274,6 +275,78 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
     return errors
 
 
+def _canonicalize_agent_output(
+    agent: str,
+    data: Any,
+    task: CaseTask,
+    package: dict[str, Any],
+) -> dict[str, Any]:
+    """修复常见的兼容模型字段漂移，同时保留需要模型负责的实质内容。"""
+    if not isinstance(data, dict):
+        return {"raw": data}
+    result = dict(data)
+    if agent == "CasePlanner":
+        outline = result.get("outline") if isinstance(result.get("outline"), dict) else {}
+        outline = dict(outline)
+        body = package.get("body") or {}
+        for key in ("background", "decision_point"):
+            if not str(outline.get(key) or "").strip():
+                candidate = result.get(key) or body.get(key)
+                if candidate:
+                    outline[key] = str(candidate)
+
+        characters = outline.get("characters") or result.get("characters") or []
+        valid_characters = [item for item in characters if isinstance(item, dict)]
+        seen = {
+            str(item.get("name") or item.get("role") or "").strip()
+            for item in valid_characters
+        }
+        for item in body.get("characters") or []:
+            marker = str(item.get("name") or item.get("role") or "").strip() if isinstance(item, dict) else ""
+            if isinstance(item, dict) and marker and marker not in seen:
+                valid_characters.append(deepcopy(item))
+                seen.add(marker)
+            if len(valid_characters) >= 3:
+                break
+        outline["characters"] = valid_characters
+        result["outline"] = outline
+
+        # 教学目标是教师已确认的上游契约，不允许兼容模型改名、删减或改写。
+        canonical_objectives = package.get("learning_objectives") or []
+        if canonical_objectives:
+            result["learning_objectives"] = deepcopy(canonical_objectives)
+
+    elif agent == "DomainExpert":
+        blueprint = (task.config or {}).get("approved_blueprint") or {}
+        checklist = [
+            dict(item) for item in result.get("discipline_checklist") or []
+            if isinstance(item, dict)
+        ]
+        present = {str(item.get("key")) for item in checklist}
+        for item in blueprint.get("required_elements") or []:
+            key = str(item.get("key") or "") if isinstance(item, dict) else ""
+            if key and key not in present:
+                checklist.append({
+                    "key": key,
+                    "label": item.get("label"),
+                    "acceptance": item.get("planned_use"),
+                })
+        if checklist:
+            result["discipline_checklist"] = checklist
+
+    elif agent == "Reviewer":
+        scores = result.get("rubric_scores")
+        keys = ("alignment", "authenticity", "discussion", "structure", "readability")
+        if isinstance(scores, dict):
+            try:
+                values = [float(scores[key]) for key in keys]
+                if all(1 <= value <= 5 for value in values):
+                    result["overall_score"] = round(sum(values) / len(values), 1)
+            except (KeyError, TypeError, ValueError):
+                pass
+    return result
+
+
 async def _run_agent_llm(
     db: Session,
     agent: str,
@@ -309,8 +382,7 @@ async def _run_agent_llm(
         data = extract_json(content)
     except Exception:
         data = {"raw": content}
-    if not isinstance(data, dict):
-        data = {"raw": data}
+    data = _canonicalize_agent_output(agent, data, task, package)
     errors = _validate_agent_output(agent, data, task)
     if errors:
         correction = (
@@ -330,6 +402,7 @@ async def _run_agent_llm(
             data = extract_json(repaired_content)
         except Exception as exc:
             raise ValueError(f"{agent} 纠错后仍未返回合法 JSON") from exc
+        data = _canonicalize_agent_output(agent, data, task, package)
         errors = _validate_agent_output(agent, data, task)
         if errors:
             raise ValueError(f"{agent} 输出契约校验失败：{'；'.join(errors)}")
