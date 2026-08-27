@@ -222,6 +222,20 @@ class ModelConfigOut(BaseModel):
     source: str
 
 
+class ResearchConfigUpdate(BaseModel):
+    enabled: bool = False
+    provider: Literal["tavily"] = "tavily"
+    api_key: str | None = Field(default=None, max_length=500)
+
+
+class ResearchConfigOut(BaseModel):
+    enabled: bool
+    provider: str
+    api_key_configured: bool
+    api_key_masked: str
+    available: bool
+
+
 # CasePackage JSON Schema（与前端 types/case.ts 对齐）
 class CaseMeta(BaseModel):
     title: str

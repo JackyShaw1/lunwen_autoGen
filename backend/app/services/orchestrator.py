@@ -29,6 +29,8 @@ from app.services.progress_hub import progress_hub
 from app.services.rubric_service import score_package
 from app.services.skill_loader import build_agent_skill_context, validate_package_with_skill
 from app.services.course_blueprint_service import text_similarity
+from app.services.auto_research_service import build_auto_research_pack
+from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
 
 import logging
 
@@ -93,6 +95,12 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
         "目标解释规范：config.objective_brief 是教师对学生卡点、期望表现、必用方法和评价证据的原始意图；"
         "必须贯穿案例、讨论题和评价设计。若教师已编辑 learning_objectives，以编辑后的目标为最高优先级，不得静默替换。\n"
     )
+    if (package.get("meta") or {}).get("content_mode") == "research_grounded":
+        base += (
+            "自动研究规范：先从 research_brief.sources 中选择被多条来源共同支持的单一真实企业、项目或事件作为案例主线；"
+            "不得混合多个无关企业拼成一个案例。来源片段未明确提供的人名、数字、内部会议、对白和因果关系不得补写；"
+            "事实必须紧邻标注来源编号，教学推断必须明确标注为分析或课堂任务。\n"
+        )
     specs = {
         "CasePlanner": (
             "请输出 JSON，字段：outline{background,decision_point,characters[]}，"
@@ -115,6 +123,8 @@ def _agent_user_prompt(agent: str, task: CaseTask, package: dict[str, Any]) -> s
             "如任务含 approved_blueprint，discipline_coverage 必须逐项覆盖 required_elements；body_evidence 必须是正文中真实出现的短证据片段，"
             "discipline_artifacts 必须保存本课程可检查的数据表、公式、条款、代码、时间线、试验或其他专业对象。"
             "正文中不要出现目标字数。只返回合法 JSON。"
+            "若 meta.content_mode 为 research_grounded，只能依据 research_brief 中的来源片段写事实；"
+            "每个关键事实必须紧邻标注[S1]、[S2]等来源编号，不得使用模型记忆补充企业名称、人物、数据或事件。"
         ),
         "PedagogyDesigner": (
             "请输出 JSON，字段：discussion_questions[{level,question,teaching_intent}]（至少5题），"
@@ -184,6 +194,11 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
                 errors.append(f"{key} 必须为非空字符串")
         if not isinstance(data.get("characters"), list) or len(data["characters"]) < 2:
             errors.append("characters 至少包含 2 个角色")
+        if ((task.config or {}).get("auto_research_pack") or {}).get("sources"):
+            visible = " ".join(str(data.get(key) or "") for key in ("background", "narrative", "decision_point"))
+            cited = set(re.findall(r"\[S\d+\]", visible))
+            if len(cited) < 3:
+                errors.append("真实案例正文至少引用 3 个不同的已检索来源编号（如 [S1][S2][S3]）")
         blueprint = (task.config or {}).get("approved_blueprint") or {}
         if blueprint.get("required_elements"):
             coverage = data.get("discipline_coverage")
@@ -772,13 +787,42 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         "class_hours": int((task.config or {}).get("class_hours") or 2),
     }
 
-    latest = (
-        db.query(CasePackage)
-        .filter(CasePackage.task_id == task_id)
-        .order_by(CasePackage.version.desc())
-        .first()
-    )
-    package = build_structured_package(task)
+    try:
+        preflight_error = generation_preflight_error(task)
+        if preflight_error and not find_grounded_profile(task) and not (task.config or {}).get("auto_research_pack"):
+            await _publish_state(
+                task_id,
+                _build_agents_state(0, "CasePlanner"),
+                2,
+                "CasePlanner",
+                step_results=[],
+                task_meta=task_meta,
+                stream={"agent": "CasePlanner", "text": "正在自动检索真实企业案例、核验来源并建立事实资料包…", "done": False},
+            )
+            research_pack = await build_auto_research_pack(task)
+            task.config = {**(task.config or {}), "auto_research_pack": research_pack}
+            db.commit()
+
+        latest = (
+            db.query(CasePackage)
+            .filter(CasePackage.task_id == task_id)
+            .order_by(CasePackage.version.desc())
+            .first()
+        )
+        package = build_structured_package(task)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        task.status = "failed"
+        task.error_message = str(exc)[:500]
+        task.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        await progress_hub.publish(task_id, {
+            "type": "agent_progress", "task_id": task_id, "overall_progress": 2,
+            "current_agent": None, "agents": _build_agents_state(0, None),
+            "step_results": [], "task_meta": task_meta, "error": str(exc),
+            "failure_stage": "agent_execution",
+        })
+        return
     next_version = (latest.version + 1) if latest else 1
     normalize_case_package(package)
 

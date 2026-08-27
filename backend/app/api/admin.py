@@ -6,12 +6,13 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user, load_agent_yaml_files, require_admin
 from app.models import AgentConfig, User
-from app.schemas import AgentConfigOut, AgentConfigUpdate, ModelConfigOut, ModelConfigUpdate
+from app.schemas import AgentConfigOut, AgentConfigUpdate, ModelConfigOut, ModelConfigUpdate, ResearchConfigOut, ResearchConfigUpdate
 from app.services.runtime_model_service import (
     get_active_model_config,
     get_masked_model_config,
     save_model_config,
 )
+from app.services.runtime_research_service import get_research_config, masked_research_config, save_research_config
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -22,6 +23,35 @@ AGENT_ORDER = [
     "PedagogyDesigner",
     "Reviewer",
 ]
+
+
+@router.get("/research-config", response_model=ResearchConfigOut)
+def read_research_config(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    return masked_research_config(db)
+
+
+@router.put("/research-config", response_model=ResearchConfigOut)
+def update_research_config(body: ResearchConfigUpdate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    return save_research_config(db, enabled=body.enabled, provider=body.provider, api_key=body.api_key)
+
+
+@router.post("/research-config/test")
+async def test_research_config(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    config = get_research_config(db)
+    if not config.api_key:
+        raise HTTPException(400, "请先保存自动研究 API Key")
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(
+                "https://api.tavily.com/search",
+                headers={"Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json"},
+                json={"query": "中国 教育 官方", "max_results": 1, "search_depth": "basic"},
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"自动研究服务连接失败：{type(exc).__name__}") from None
+    if response.status_code >= 400:
+        raise HTTPException(response.status_code, f"自动研究服务返回 HTTP {response.status_code}")
+    return {"success": True, "message": "自动研究服务连接成功"}
 
 
 @router.get("/model-config", response_model=ModelConfigOut)

@@ -37,6 +37,12 @@ from app.services.runtime_model_service import (
     get_masked_model_config,
     save_model_config,
 )
+from app.services.runtime_research_service import (
+    RESEARCH_API_KEY,
+    get_research_config,
+    masked_research_config,
+    save_research_config,
+)
 
 
 def make_task(class_hours: int = 1) -> CaseTask:
@@ -64,6 +70,42 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_research_key_is_encrypted_and_auto_pack_enters_grounded_mode(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        try:
+            masked = save_research_config(session, enabled=True, provider="tavily", api_key="tvly-secret")
+            self.assertTrue(masked["available"])
+            self.assertNotIn("tvly-secret", session.get(SystemMeta, RESEARCH_API_KEY).value)
+            self.assertEqual(get_research_config(session).api_key, "tvly-secret")
+            self.assertNotIn("tvly-secret", json.dumps(masked_research_config(session)))
+        finally:
+            session.close()
+
+        task = make_task(2)
+        blueprint = build_case_blueprint({
+            "title": task.title, "subject": task.subject, "course_name": task.course_name,
+            "case_type": task.case_type, "difficulty": task.difficulty,
+            "target_audience": task.target_audience, "learning_objectives": task.learning_objectives,
+        })
+        blueprint["approved"] = True
+        task.config = {
+            "special_requirements": "基于真实企业案例，不得虚构",
+            "approved_blueprint": blueprint,
+            "auto_research_pack": {
+                "fact_policy": "只使用来源片段",
+                "sources": [
+                    {"id": f"S{i}", "title": f"来源{i}", "source_page_url": f"https://example.com/{i}", "excerpt": "核验片段"}
+                    for i in range(1, 6)
+                ],
+            },
+        }
+        package = build_structured_package(task)
+        self.assertEqual(package["meta"]["content_mode"], "research_grounded")
+        self.assertEqual(len(package["evidence_sources"]), 5)
+        self.assertIn("sources", package["research_brief"])
+
     def test_teacher_progress_payload_never_contains_raw_agent_json(self) -> None:
         task = make_task(2)
         package = build_structured_package(task)

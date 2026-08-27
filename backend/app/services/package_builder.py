@@ -453,7 +453,8 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
     profile = find_grounded_profile(task)
     if profile:
         return _build_grounded_package(task, profile)
-    preflight_error = generation_preflight_error(task)
+    auto_research_pack = (task.config or {}).get("auto_research_pack") or {}
+    preflight_error = generation_preflight_error(task) if not auto_research_pack else None
     if preflight_error:
         raise ValueError(preflight_error)
     lo_items = _objectives(task)
@@ -574,13 +575,29 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
         },
         "quality": {},
     }
+    if auto_research_pack:
+        sources = deepcopy(auto_research_pack.get("sources") or [])
+        package["meta"].update({
+            "content_mode": "research_grounded",
+            "fictional_disclaimer": "本案例依据公开来源生成；推断与教学任务不冒充已确认事实。",
+            "source_policy": auto_research_pack.get("fact_policy"),
+        })
+        package["evidence_sources"] = [
+            {key: value for key, value in source.items() if key != "excerpt"}
+            for source in sources
+        ]
+        package["research_brief"] = {
+            "fact_policy": auto_research_pack.get("fact_policy"),
+            "sources": sources,
+        }
     approved_blueprint = (task.config or {}).get("approved_blueprint") or {}
     selected_id, _, exact_contract = select_course_contract({
         "title": task.title, "subject": task.subject, "course_name": task.course_name,
         "learning_objectives": task.learning_objectives or [],
     })
     if approved_blueprint:
-        package.setdefault("meta", {})["content_mode"] = "discipline_contract"
+        if not auto_research_pack:
+            package.setdefault("meta", {})["content_mode"] = "discipline_contract"
         package["meta"]["course_contract_id"] = approved_blueprint.get("contract_id")
         package["case_blueprint"] = approved_blueprint
         package["domain_context"] = {
@@ -589,7 +606,7 @@ def build_structured_package(task: CaseTask, *, domain_notes: str | None = None)
                 for item in approved_blueprint.get("required_elements") or []
             )
         }
-        if exact_contract and approved_blueprint.get("contract_id") == selected_id:
+        if not auto_research_pack and exact_contract and approved_blueprint.get("contract_id") == selected_id:
             _apply_discipline_contract(package, task, approved_blueprint)
     if domain_notes:
         package["domain_context"] = {"notes": domain_notes.strip()}

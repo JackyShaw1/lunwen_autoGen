@@ -273,3 +273,26 @@ export async function testModelConfig() {
   )
   return data
 }
+
+export interface ResearchConfig {
+  enabled: boolean
+  provider: 'tavily'
+  api_key_configured: boolean
+  api_key_masked: string
+  available: boolean
+}
+
+export async function fetchResearchConfig() {
+  const { data } = await api.get<ResearchConfig>('/admin/research-config')
+  return data
+}
+
+export async function updateResearchConfig(payload: { enabled: boolean; provider: 'tavily'; api_key?: string }) {
+  const { data } = await api.put<ResearchConfig>('/admin/research-config', payload)
+  return data
+}
+
+export async function testResearchConfig() {
+  const { data } = await api.post<{ success: boolean; message: string }>('/admin/research-config/test')
+  return data
+}

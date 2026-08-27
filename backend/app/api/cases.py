@@ -21,6 +21,7 @@ from app.schemas import (
 )
 from app.services.export_service import export_docx, export_pdf
 from app.services.grounded_case_service import find_grounded_profile, generation_preflight_error
+from app.services.runtime_research_service import get_research_config
 from app.services.llm_client import llm_available
 from app.services.orchestrator import run_generation
 from app.services.objective_generator import generate_objectives
@@ -189,7 +190,11 @@ async def start_generate(
     if task.status not in ("draft", "failed"):
         raise HTTPException(400, f"当前任务状态不允许生成：{task.status}")
     preflight_error = generation_preflight_error(task)
-    if preflight_error:
+    if preflight_error and not get_research_config(db).available:
+        preflight_error = (
+            "该任务要求真实案例，系统需要先自动检索并核验来源；"
+            "请管理员在“大模型配置 → 自动资料研究”中完成一次检索服务配置，教师无需自行搜集资料。"
+        )
         task.status = "failed"
         task.error_message = preflight_error
         task.updated_at = datetime.now(timezone.utc)
