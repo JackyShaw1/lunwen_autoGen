@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +35,8 @@ from app.services.material_service import material_context_signature, recommende
 from app.services.video_service import recommended_videos
 
 router = APIRouter(prefix="/cases", tags=["cases"])
+logger = logging.getLogger(__name__)
+GENERATION_DEADLINE_SECONDS = 15 * 60
 
 # 防止 create_task 被 GC 提前回收
 _bg_tasks: set[asyncio.Task] = set()
@@ -75,7 +78,25 @@ async def _run_generation_task(task_id: str) -> None:
     """在主事件循环中跑生成，确保 WebSocket 进度推送可用。"""
     db = SessionLocal()
     try:
-        await run_generation(db, task_id)
+        await asyncio.wait_for(run_generation(db, task_id), timeout=GENERATION_DEADLINE_SECONDS)
+    except TimeoutError:
+        db.rollback()
+        task = db.query(CaseTask).filter(CaseTask.id == task_id).first()
+        if task and task.status == "running":
+            task.status = "failed"
+            task.error_message = "生成超过 15 分钟安全时限，已自动终止；请重试，不会重复扣减额度"
+            task.updated_at = datetime.now(timezone.utc)
+            db.commit()
+        logger.error("generation deadline exceeded task=%s", task_id)
+    except Exception as exc:  # 流水线内部已处理业务异常，此处兜底防止僵尸状态
+        db.rollback()
+        task = db.query(CaseTask).filter(CaseTask.id == task_id).first()
+        if task and task.status == "running":
+            task.status = "failed"
+            task.error_message = f"生成任务异常终止：{type(exc).__name__}"
+            task.updated_at = datetime.now(timezone.utc)
+            db.commit()
+        logger.exception("unhandled background generation error task=%s", task_id)
     finally:
         db.close()
 
@@ -83,7 +104,17 @@ async def _run_generation_task(task_id: str) -> None:
 def _spawn_generation(task_id: str) -> None:
     task = asyncio.create_task(_run_generation_task(task_id))
     _bg_tasks.add(task)
-    task.add_done_callback(_bg_tasks.discard)
+
+    def _cleanup(done: asyncio.Task) -> None:
+        _bg_tasks.discard(done)
+        if done.cancelled():
+            logger.warning("background generation cancelled task=%s", task_id)
+            return
+        error = done.exception()
+        if error:
+            logger.error("background generation escaped task=%s error=%r", task_id, error)
+
+    task.add_done_callback(_cleanup)
 
 
 @router.get("", response_model=list[CaseTaskOut])

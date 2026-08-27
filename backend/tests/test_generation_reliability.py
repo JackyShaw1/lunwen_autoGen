@@ -1,8 +1,10 @@
+import asyncio
 import re
 import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, patch
 
 from pptx import Presentation
 from sqlalchemy import create_engine
@@ -16,6 +18,7 @@ from app.services.orchestrator import (
     _canonicalize_agent_output,
     _package_focus,
     _task_context,
+    _run_agent_llm,
     _validate_agent_output,
 )
 from app.services.package_builder import (
@@ -65,6 +68,63 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_grounded_casewriter_citation_validation_executes(self) -> None:
+        task = make_task(2)
+        task.config = {"auto_research_pack": {"sources": [{"id": "S1"}]}}
+        errors = _validate_agent_output(
+            "CaseWriter",
+            {
+                "background": "背景[S1]",
+                "narrative": "叙事",
+                "decision_point": "决策点",
+                "characters": [{"name": "甲"}, {"name": "乙"}],
+            },
+            task,
+        )
+        self.assertTrue(any("至少引用 3 个" in item for item in errors))
+
+    def test_casewriter_evidence_accepts_punctuation_variation(self) -> None:
+        task = make_task(2)
+        task.config = {
+            "approved_blueprint": {
+                "required_elements": [{"key": "mechanism", "label": "流程机制"}],
+            }
+        }
+        errors = _validate_agent_output(
+            "CaseWriter",
+            {
+                "background": "企业需要明确流程所有者，并建立端到端问责机制。",
+                "narrative": "执行过程中出现冲突。",
+                "decision_point": "是否调整流程治理。",
+                "characters": [{"name": "甲"}, {"name": "乙"}],
+                "discipline_coverage": [
+                    {"key": "mechanism", "body_evidence": "企业需要明确“流程所有者”并建立端到端问责机制"}
+                ],
+                "discipline_artifacts": {"process": "端到端流程"},
+            },
+            task,
+        )
+        self.assertFalse(any("discipline_coverage" in item for item in errors))
+
+    def test_non_writer_invalid_json_uses_blueprint_fallback(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        task = make_task(2)
+        package = build_structured_package(task)
+        try:
+            with patch(
+                "app.services.orchestrator.chat_completion",
+                new=AsyncMock(return_value="模型未返回 JSON"),
+            ):
+                data, summary, _tokens = asyncio.run(
+                    _run_agent_llm(session, "CasePlanner", task, package)
+                )
+            self.assertIn("outline", data)
+            self.assertIn("自动恢复", summary)
+        finally:
+            session.close()
+
     def test_research_trust_tier_rejects_spoofed_official_domain(self) -> None:
         self.assertEqual(_credibility("https://www.miit.gov.cn/article/1"), "A")
         self.assertEqual(_credibility("https://gov.cn.untrusted.example/article/1"), "B")

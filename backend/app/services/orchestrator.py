@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 import time
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -208,10 +209,23 @@ def _validate_agent_output(agent: str, data: Any, task: CaseTask) -> list[str]:
             else:
                 visible = " ".join(str(data.get(key) or "") for key in ("background", "narrative", "decision_point"))
                 expected = {str(item.get("key")) for item in blueprint["required_elements"] if isinstance(item, dict)}
+                def evidence_supported(value: Any) -> bool:
+                    evidence = str(value or "").strip()
+                    if len(evidence) < 4:
+                        return False
+                    normalized_evidence = re.sub(r"[\W_]+", "", evidence)
+                    normalized_visible = re.sub(r"[\W_]+", "", visible)
+                    if normalized_evidence and normalized_evidence in normalized_visible:
+                        return True
+                    sentences = [
+                        item.strip() for item in re.split(r"[\n。！？；]+", visible)
+                        if len(item.strip()) >= 8
+                    ]
+                    return any(text_similarity(evidence, sentence) >= 0.42 for sentence in sentences)
+
                 covered = {
                     str(item.get("key")) for item in coverage
-                    if isinstance(item, dict) and len(str(item.get("body_evidence") or "").strip()) >= 4
-                    and str(item.get("body_evidence") or "").strip() in visible
+                    if isinstance(item, dict) and evidence_supported(item.get("body_evidence"))
                 }
                 missing = expected - covered
                 if missing:
@@ -349,6 +363,18 @@ def _canonicalize_agent_output(
         if checklist:
             result["discipline_checklist"] = checklist
 
+    elif agent == "CaseWriter":
+        coverage = result.get("discipline_coverage")
+        if isinstance(coverage, list):
+            for item in coverage:
+                if not isinstance(item, dict) or item.get("body_evidence"):
+                    continue
+                # 兼容模型常见的证据字段命名漂移，统一后仍由正文匹配校验。
+                for alias in ("evidence", "text_evidence", "quote", "excerpt"):
+                    if str(item.get(alias) or "").strip():
+                        item["body_evidence"] = str(item[alias]).strip()
+                        break
+
     elif agent == "Reviewer":
         scores = result.get("rubric_scores")
         keys = ("alignment", "authenticity", "discussion", "structure", "readability")
@@ -400,28 +426,51 @@ async def _run_agent_llm(
     data = _canonicalize_agent_output(agent, data, task, package)
     errors = _validate_agent_output(agent, data, task)
     if errors:
-        correction = (
-            "上一次输出未通过结构契约校验：\n- "
-            + "\n- ".join(errors)
-            + "\n请依据原任务完整重做，只返回满足契约的合法 JSON，不要解释。"
-        )
-        repaired_content = await chat_completion(
-            messages + [{"role": "assistant", "content": content}, {"role": "user", "content": correction}],
-            temperature=min(float(model_cfg.get("temperature", 0.7)), 0.3),
-            max_tokens=max_tokens,
-            model=use_model,
-            on_delta=on_delta,
-        )
-        total_content += repaired_content
-        try:
-            data = extract_json(repaired_content)
-        except Exception as exc:
-            raise ValueError(f"{agent} 纠错后仍未返回合法 JSON") from exc
-        data = _canonicalize_agent_output(agent, data, task, package)
-        errors = _validate_agent_output(agent, data, task)
-        if errors:
-            raise ValueError(f"{agent} 输出契约校验失败：{'；'.join(errors)}")
-        content = repaired_content
+        last_content = content
+        final_error: Exception | None = None
+        correction_attempts = 2 if agent == "CaseWriter" else 1
+        for _attempt in range(correction_attempts):
+            correction = (
+                "上一次输出未通过结构契约校验：\n- "
+                + "\n- ".join(errors)
+                + "\n请保留已有有效正文，精确修复上述字段；只返回满足契约的完整合法 JSON，不要解释。"
+            )
+            try:
+                repaired_content = await chat_completion(
+                    messages + [{"role": "assistant", "content": last_content}, {"role": "user", "content": correction}],
+                    temperature=min(float(model_cfg.get("temperature", 0.7)), 0.3),
+                    max_tokens=max_tokens,
+                    model=use_model,
+                    on_delta=on_delta,
+                )
+                total_content += repaired_content
+                data = extract_json(repaired_content)
+                data = _canonicalize_agent_output(agent, data, task, package)
+                errors = _validate_agent_output(agent, data, task)
+                if not errors:
+                    content = repaired_content
+                    final_error = None
+                    break
+                final_error = ValueError(f"输出契约校验失败：{'；'.join(errors)}")
+                last_content = repaired_content
+            except RuntimeError as exc:
+                final_error = exc
+                break
+            except Exception as exc:
+                final_error = exc
+                errors = [f"JSON 解析失败：{type(exc).__name__}"]
+        if final_error is not None:
+            # 策划、学科、教学设计和评审都有由已确认蓝图驱动的确定性实现；
+            # 模型偶发格式漂移不应让整条流水线作废。正文仍坚持模型生成和严格验收。
+            if agent != "CaseWriter":
+                fallback, fallback_summary, fallback_tokens = _run_agent_mock(agent, task, package)
+                return (
+                    fallback,
+                    f"{fallback_summary}；模型输出格式异常，已按教师确认蓝图自动恢复",
+                    max(len(total_content) // 3, 1) + fallback_tokens,
+                )
+            detail = str(final_error).strip() or type(final_error).__name__
+            raise ValueError(f"{agent} 纠错后仍未通过结构契约：{detail[:320]}") from final_error
     summary = content[:240].replace("\n", " ")
     tokens = max(len(total_content) // 3, 1)
     return data, summary, tokens

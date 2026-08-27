@@ -48,7 +48,7 @@ function mergeProgress(
 }
 
 /**
- * 进度订阅：HTTP 轮询为主（可靠拿到 stream），WebSocket 为辅加速。
+ * 进度订阅：WebSocket 实时推送，HTTP 低频轮询用于断线兜底。
  * WebSocket 走当前站点同源地址，由 Vite 在开发环境代理到后端。
  */
 export function useGenerationWs(caseId: string | undefined) {
@@ -66,7 +66,7 @@ export function useGenerationWs(caseId: string | undefined) {
         const msg = (await fetchLiveProgress(caseId)) as AgentProgressMessage
         if (!msg || typeof msg !== 'object') return
         setProgress((prev) => mergeProgress(prev, { ...msg, type: 'agent_progress' }))
-        if (msg.overall_progress >= 100 && (!msg.stream || msg.stream.done)) {
+        if (msg.error || (msg.overall_progress >= 100 && (!msg.stream || msg.stream.done))) {
           // 结束后再多拉几次确保最后一帧，然后停
           window.setTimeout(() => {
             stopped.current = true
@@ -76,7 +76,7 @@ export function useGenerationWs(caseId: string | undefined) {
       } catch {
         /* ignore */
       }
-    }, 100)
+    }, 1500)
 
     // --- WebSocket（辅通道，更快）---
     let ws: WebSocket | null = null

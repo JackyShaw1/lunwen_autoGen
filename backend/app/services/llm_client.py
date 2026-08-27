@@ -50,6 +50,11 @@ async def chat_completion(
                 model=model,
                 on_delta=on_delta,
             )
+        except httpx.TimeoutException as exc:
+            # 超时后再发一次完整请求会让单节点等待翻倍，并可能产生两份并行账单。
+            # 交由上层将本次节点明确标记失败或采用确定性降级。
+            logger.warning("LLM stream timed out; skip duplicate non-stream request")
+            raise RuntimeError("大模型响应超时，请稍后重试或检查模型服务稳定性") from exc
         except Exception as exc:
             logger.warning("LLM stream failed, fallback non-stream: %s", exc)
             # 告知前端进入非流式等待
@@ -126,6 +131,7 @@ async def chat_completion_stream(
     logger.info("LLM stream request model=%s url=%s", use_model, url)
 
     full = ""
+    reasoning = ""
     async with httpx.AsyncClient(timeout=180.0) as client:
         async with client.stream("POST", url, json=payload, headers=headers) as resp:
             if resp.status_code >= 400:
@@ -151,17 +157,21 @@ async def chat_completion_stream(
                     continue
                 delta = choices[0].get("delta") or {}
                 piece = delta.get("content") or ""
-                # DeepSeek 推理模型可能先推 reasoning_content
+                reasoning_piece = delta.get("reasoning_content") or ""
                 if not piece:
-                    piece = delta.get("reasoning_content") or ""
-                if not piece:
-                    continue
-                full += piece
+                    if not reasoning_piece:
+                        continue
+                    reasoning += reasoning_piece
+                    piece = reasoning_piece
+                else:
+                    full += piece
                 if on_delta:
-                    await on_delta(full, piece)
+                    # 进度可以由思考流驱动，但返回值绝不能把思考文本和 JSON 正文拼接。
+                    await on_delta(full or reasoning, piece)
 
-    logger.info("LLM stream done chars=%s", len(full))
-    return full
+    result = full or reasoning
+    logger.info("LLM stream done content_chars=%s reasoning_chars=%s", len(full), len(reasoning))
+    return result
 
 
 def extract_json(text: str) -> Any:
