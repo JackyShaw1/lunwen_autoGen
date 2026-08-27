@@ -93,6 +93,22 @@ class AgentRunLog(Base):
     task: Mapped["CaseTask"] = relationship(back_populates="agent_logs")
 
 
+class GenerationCheckpoint(Base):
+    """Agent 级持久化检查点，失败重试时从最后成功节点继续。"""
+
+    __tablename__ = "generation_checkpoints"
+
+    task_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("case_tasks.id", ondelete="CASCADE"), primary_key=True
+    )
+    package: Mapped[dict] = mapped_column(JSON, default=dict)
+    completed_agents: Mapped[list] = mapped_column(JSON, default=list)
+    step_results: Mapped[list] = mapped_column(JSON, default=list)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class AgentConfig(Base):
     __tablename__ = "agent_configs"
 

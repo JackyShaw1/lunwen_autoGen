@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import json
 import logging
 import re
@@ -175,16 +176,48 @@ async def chat_completion_stream(
 
 
 def extract_json(text: str) -> Any:
-    """从模型输出中提取 JSON（支持 ```json 代码块）"""
-    text = text.strip()
+    """宽容提取结构化输出，但只接受对象或数组。
+
+    兼容模型常见的代码围栏、说明前后缀、尾逗号、裸字段名和 Python
+    字面量；让协议格式波动停留在模型网关，不能击穿业务流水线。
+    """
+    text = str(text or "").strip().lstrip("\ufeff")
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if fence:
         text = fence.group(1).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
+
+    candidates = [text]
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = text.find(opener)
+        end = text.rfind(closer)
         if start >= 0 and end > start:
-            return json.loads(text[start : end + 1])
-        raise
+            candidates.append(text[start : end + 1])
+
+    last_error: Exception | None = None
+    for candidate in dict.fromkeys(candidates):
+        variants = [candidate]
+        repaired = re.sub(r",\s*([}\]])", r"\1", candidate)
+        repaired = re.sub(
+            r'([,{]\s*)([A-Za-z_][A-Za-z0-9_-]*)(\s*:)',
+            r'\1"\2"\3',
+            repaired,
+        )
+        if repaired != candidate:
+            variants.append(repaired)
+        for variant in variants:
+            try:
+                parsed = json.loads(variant)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+            except (json.JSONDecodeError, TypeError) as exc:
+                last_error = exc
+            try:
+                parsed = ast.literal_eval(variant)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+            except (SyntaxError, ValueError) as exc:
+                last_error = exc
+
+    if last_error:
+        raise ValueError("模型未返回可解析的结构化对象") from last_error
+    raise ValueError("模型未返回结构化对象")

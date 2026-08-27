@@ -14,7 +14,7 @@ import yaml
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import AgentConfig, AgentRunLog, CasePackage, CaseTask, User
+from app.models import AgentConfig, AgentRunLog, CasePackage, CaseTask, GenerationCheckpoint, User
 from app.services.llm_client import chat_completion, extract_json, llm_available
 from app.services.runtime_model_service import get_active_model_config
 from app.services.package_builder import (
@@ -483,23 +483,31 @@ async def _repair_casewriter_length(
     *,
     on_delta: Any = None,
 ) -> tuple[dict[str, Any], int]:
-    """让 LLM 对不足篇幅的正文定向扩写；返回最终输出和额外 token 估算。"""
+    """用纯文本协议修订长正文，避免再次把数千字封装为脆弱 JSON。"""
     minimum = math.ceil(task.target_words * 0.95)
     maximum = math.floor(task.target_words * 1.05)
     extra_tokens = 0
-    for attempt in range(2):
+    for attempt in range(3):
         actual = count_case_body_chars(package)
         if minimum <= actual <= maximum:
             break
         body = package.get("body") or {}
+        fixed_chars = len(re.sub(r"\s+", "", str(body.get("background") or "") + str(body.get("decision_point") or "")))
+        desired_narrative = max(task.target_words - fixed_chars, 300)
+        coverage = package.get("discipline_coverage") or []
+        required_phrases = [
+            str(item.get("body_evidence") or "").strip()
+            for item in coverage if isinstance(item, dict) and item.get("body_evidence")
+        ]
         prompt = (
-            "你是教学案例正文修订专家。当前正文未通过篇幅验收，请在保留人物、事实逻辑和决策冲突的基础上重写并调整篇幅。\n"
+            "你是教学案例正文修订专家。只修订案例的主体叙事，不修改背景、决策点、人物、来源编号和事实边界。\n"
             f"当前可见字符数：{actual}；目标：{task.target_words}；合格范围：{minimum}–{maximum}。\n"
+            f"修订后的主体叙事目标约 {desired_narrative} 个可见中文字符。\n"
             "篇幅不足时重点补充具体场景、行动过程、数据证据、角色对话、利益权衡和逐步升级的冲突；篇幅超出时压缩次要信息。"
             "不得复制段落、空泛总结或在正文中谈论字数。\n"
-            "保留并更新 discipline_coverage 与 discipline_artifacts，确保每个 body_evidence 仍能在修订后正文中原样找到。"
-            "只返回 JSON：{background:string,narrative:string,decision_point:string,characters:array,discipline_coverage:array,discipline_artifacts:object}。\n"
-            f"当前正文：\n{yaml.safe_dump(body, allow_unicode=True)}"
+            f"以下证据短语如原本位于叙事中必须原样保留：{required_phrases}。\n"
+            "只返回修订后的主体叙事纯文本，不要 JSON、字段名、代码围栏或解释。\n"
+            f"当前主体叙事：\n{body.get('narrative') or ''}"
         )
         cfg = _load_agent_config(db, "CaseWriter")
         system = cfg.get("system_prompt") or AGENT_HINTS["CaseWriter"]
@@ -514,10 +522,46 @@ async def _repair_casewriter_length(
             on_delta=on_delta,
         )
         extra_tokens += max(len(content) // 3, 1)
-        repaired = extract_json(content)
-        if not isinstance(repaired, dict):
-            raise ValueError(f"第 {attempt + 1} 次篇幅修订未返回合法 JSON")
-        package = merge_agent_output(package, "CaseWriter", repaired)
+        revised = str(content or "").strip()
+        fence = re.search(r"```(?:text|markdown)?\s*([\s\S]*?)```", revised)
+        if fence:
+            revised = fence.group(1).strip()
+        # 少数模型无视纯文本要求仍返回对象；网关可解析时仅取 narrative。
+        if revised.startswith(("{", "[")):
+            try:
+                structured = extract_json(revised)
+                if isinstance(structured, dict) and structured.get("narrative"):
+                    revised = str(structured["narrative"]).strip()
+            except ValueError:
+                revised = ""
+        revised = re.sub(r"^\s*(?:主体叙事|narrative)\s*[：:]\s*", "", revised, flags=re.I)
+        if revised:
+            package.setdefault("body", {})["narrative"] = revised
+            normalize_case_package(package)
+            # body_evidence 是正文定位指针，不是不可变事实。模型改写措辞后，
+            # 将失效指针重新锚定到语义最接近的现有句子，避免为保留旧短语反复重写全文。
+            visible = " ".join(
+                str(package["body"].get(key) or "")
+                for key in ("background", "narrative", "decision_point")
+            )
+            sentences = [
+                item.strip()
+                for item in re.split(r"[\n。！？；]+", visible)
+                if len(item.strip()) >= 8
+            ]
+            for item in coverage:
+                if not isinstance(item, dict):
+                    continue
+                old_evidence = str(item.get("body_evidence") or "").strip()
+                if old_evidence and old_evidence in visible:
+                    continue
+                anchor = " ".join(
+                    part for part in (old_evidence, str(item.get("label") or "")) if part
+                )
+                if anchor and sentences:
+                    best = max(sentences, key=lambda sentence: text_similarity(anchor, sentence))
+                    if text_similarity(anchor, best) >= 0.18:
+                        item["body_evidence"] = best[:180]
     return package, extra_tokens
 
 
@@ -650,6 +694,29 @@ def _business_summary(
     else:
         summary = "本阶段业务结果已生成"
     return summary + suffix
+
+
+def _public_generation_error(exc: Exception, agent: str | None = None) -> str:
+    """把内部协议/网络异常转成教师可理解且可操作的错误。"""
+    detail = str(exc).strip()
+    stage = AGENT_LABELS_BACKEND.get(agent or "", agent or "生成准备")
+    parser_markers = ("Expecting property", "JSON", "结构化对象", "decode")
+    if any(marker.lower() in detail.lower() for marker in parser_markers):
+        return f"{stage}阶段的模型返回格式异常。系统已保留此前成功结果，请点击“继续生成”从当前阶段重试。"
+    if "超时" in detail or "timeout" in detail.lower():
+        return f"{stage}阶段等待模型响应超时。系统已保留此前成功结果，请稍后点击“继续生成”。"
+    if detail.startswith("案例包质量门禁未通过") or "篇幅验收" in detail:
+        return detail[:500]
+    return f"{stage}阶段未能完成。系统已保存此前成功结果，请点击“继续生成”；如持续失败请联系管理员查看服务日志。"
+
+
+AGENT_LABELS_BACKEND = {
+    "CasePlanner": "结构策划",
+    "DomainExpert": "学科校验",
+    "CaseWriter": "案例撰写",
+    "PedagogyDesigner": "教学设计",
+    "Reviewer": "质量评审",
+}
 
 
 def _agent_progress_text(agent: str) -> str:
@@ -868,6 +935,9 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         "class_hours": int((task.config or {}).get("class_hours") or 2),
     }
 
+    checkpoint: GenerationCheckpoint | None = None
+    restored_agents: list[str] = []
+    restored_steps: list[dict[str, Any]] = []
     try:
         preflight_error = generation_preflight_error(task)
         if preflight_error and not find_grounded_profile(task) and not (task.config or {}).get("auto_research_pack"):
@@ -890,17 +960,37 @@ async def run_pipeline(db: Session, task_id: str) -> None:
             .order_by(CasePackage.version.desc())
             .first()
         )
-        package = build_structured_package(task)
+        checkpoint = db.get(GenerationCheckpoint, task_id)
+        if checkpoint and checkpoint.package:
+            candidate_agents = [
+                name for name in (checkpoint.completed_agents or []) if name in AGENT_SEQUENCE
+            ]
+            expected_prefix = AGENT_SEQUENCE[: len(candidate_agents)]
+            if candidate_agents == expected_prefix:
+                package = deepcopy(checkpoint.package)
+                restored_agents = candidate_agents
+                restored_steps = deepcopy(checkpoint.step_results or [])
+                logger.warning(
+                    "resume generation task=%s completed_agents=%s",
+                    task_id,
+                    ",".join(restored_agents),
+                )
+            else:
+                package = build_structured_package(task)
+        else:
+            package = build_structured_package(task)
     except Exception as exc:  # noqa: BLE001
         db.rollback()
+        logger.exception("generation preparation failed task=%s", task_id)
+        public_error = _public_generation_error(exc)
         task.status = "failed"
-        task.error_message = str(exc)[:500]
+        task.error_message = public_error
         task.updated_at = datetime.now(timezone.utc)
         db.commit()
         await progress_hub.publish(task_id, {
             "type": "agent_progress", "task_id": task_id, "overall_progress": 2,
             "current_agent": None, "agents": _build_agents_state(0, None),
-            "step_results": [], "task_meta": task_meta, "error": str(exc),
+            "step_results": [], "task_meta": task_meta, "error": public_error,
             "failure_stage": "agent_execution",
         })
         return
@@ -919,11 +1009,15 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         use_llm,
         get_active_model_config(db).model if use_llm else "mock",
     )
-    agents = list(AGENT_SEQUENCE)
+    agents = list(AGENT_SEQUENCE[len(restored_agents) :])
 
     total = len(AGENT_SEQUENCE)
-    step_results: list[dict[str, Any]] = []
-    step_map: dict[str, dict[str, Any]] = {}
+    step_results: list[dict[str, Any]] = restored_steps
+    step_map: dict[str, dict[str, Any]] = {
+        str(step.get("agent")): step
+        for step in restored_steps
+        if step.get("agent") in restored_agents and step.get("status") == "completed"
+    }
     skill_trace: dict[str, list[dict[str, Any]]] = dict(
         (package.get("meta") or {}).get("skill_trace") or {}
     )
@@ -1118,6 +1212,13 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                     duration_ms=max(duration_ms, 1),
                 )
             )
+            checkpoint = db.get(GenerationCheckpoint, task_id)
+            if checkpoint is None:
+                checkpoint = GenerationCheckpoint(task_id=task_id)
+                db.add(checkpoint)
+            checkpoint.package = deepcopy(package)
+            checkpoint.completed_agents = AGENT_SEQUENCE[: idx + 1]
+            checkpoint.step_results = deepcopy(step_results)
             db.commit()
 
             agents_state = _build_agents_state(idx + 1, None, step_map=step_map)
@@ -1198,6 +1299,10 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         )
         db.add(pkg)
 
+        checkpoint = db.get(GenerationCheckpoint, task_id)
+        if checkpoint is not None:
+            db.delete(checkpoint)
+
         task.status = "finalized" if overall >= settings.reviewer_pass_threshold else "completed"
         task.updated_at = datetime.now(timezone.utc)
         db.commit()
@@ -1218,11 +1323,18 @@ async def run_pipeline(db: Session, task_id: str) -> None:
         # before persisting the task failure; otherwise the original failure is
         # masked and the task may remain stuck as running.
         db.rollback()
+        logger.exception(
+            "generation pipeline failed task=%s agent=%s stage=%s",
+            task_id,
+            active_agent,
+            failure_stage,
+        )
         task = db.query(CaseTask).filter(CaseTask.id == task_id).first()
         if not task:
             return
+        public_error = _public_generation_error(exc, active_agent)
         task.status = "failed"
-        task.error_message = str(exc)[:500]
+        task.error_message = public_error
         task.updated_at = datetime.now(timezone.utc)
         db.commit()
         failed_agents = _build_agents_state(len(step_map), None, step_map=step_map)
@@ -1240,7 +1352,7 @@ async def run_pipeline(db: Session, task_id: str) -> None:
                 "agents": failed_agents,
                 "step_results": step_results,
                 "task_meta": task_meta,
-                "error": str(exc),
+                "error": public_error,
                 "failure_stage": failure_stage,
             },
         )

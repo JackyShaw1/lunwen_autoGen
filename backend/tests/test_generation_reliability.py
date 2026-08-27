@@ -20,12 +20,15 @@ from app.services.orchestrator import (
     _package_focus,
     _task_context,
     _run_agent_llm,
+    _repair_casewriter_length,
     _stream_preview_text,
     _validate_agent_output,
 )
+from app.services.llm_client import extract_json
 from app.services.package_builder import (
     build_structured_package,
     build_teaching_flow,
+    count_case_body_chars,
     ensure_mock_body_length,
     fit_teaching_flow_to_class_hours,
     normalize_case_package,
@@ -70,6 +73,51 @@ def flow_minutes(flow: str) -> int:
 
 
 class GenerationReliabilityTests(unittest.TestCase):
+    def test_normalization_removes_contradictory_generic_template_people(self) -> None:
+        package = {
+            "meta": {"target_words": 100},
+            "body": {
+                "background": "陈启明召开会议。",
+                "narrative": "林晓雯与赵磊提出不同意见。",
+                "decision_point": "陈启明必须决策。",
+                "characters": [{"name": "陈启明"}, {"name": "林晓雯"}, {"name": "赵磊"}],
+            },
+        }
+        normalize_case_package(package)
+        visible = json.dumps(package, ensure_ascii=False)
+        self.assertNotIn("陈启明", visible)
+        self.assertNotIn("林晓雯", visible)
+        self.assertNotIn("赵磊", visible)
+        self.assertIn("项目总负责人", visible)
+
+    def test_structured_gateway_repairs_common_model_json_drift(self) -> None:
+        self.assertEqual(extract_json("说明如下\n```json\n{foo: 'bar', count: 2,}\n```"), {"foo": "bar", "count": 2})
+
+    def test_casewriter_length_repair_uses_plain_text_protocol(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        task = make_task(2)
+        package = build_structured_package(task)
+        body = package["body"]
+        fixed = len(re.sub(r"\s+", "", body["background"] + body["decision_point"]))
+        revised = "这是经过学科约束修订的具体案例行动与决策冲突。" * 200
+        visible_target = task.target_words - fixed
+        revised = revised[:visible_target]
+        try:
+            with patch(
+                "app.services.orchestrator.chat_completion",
+                new=AsyncMock(return_value=revised),
+            ) as completion:
+                result, _tokens = asyncio.run(
+                    _repair_casewriter_length(session, task, package)
+                )
+            self.assertEqual(result["body"]["narrative"], revised)
+            self.assertNotIn("只返回 JSON", completion.await_args.args[0][1]["content"])
+            self.assertGreaterEqual(count_case_body_chars(result), int(task.target_words * 0.95))
+        finally:
+            session.close()
+
     def test_agent_business_summaries_never_expose_json_protocol(self) -> None:
         task = make_task(2)
         package = build_structured_package(task)
