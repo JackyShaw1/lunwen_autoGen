@@ -486,6 +486,23 @@ class GenerationReliabilityTests(unittest.TestCase):
     def test_redesigned_ppt_is_a_valid_editable_widescreen_file(self) -> None:
         package = build_structured_package(make_task(2))
         from app.services import pptx_export_service
+        outline = build_ppt_outline(
+            package,
+            {"theme": "executive", "density": "standard", "audience": "teacher"},
+        )
+        for slide in outline["slides"]:
+            if slide["kind"] == "decision":
+                self.assertLessEqual(len(slide["items"]), 2)
+                self.assertLessEqual(sum(len(item) for item in slide["items"]), 145)
+            elif slide["kind"] == "questions":
+                self.assertLessEqual(len(slide["items"]), 2)
+            elif slide["kind"] == "teaching_tips":
+                self.assertLessEqual(len(slide["key_points"]), 2)
+                self.assertLessEqual(len(slide["misconceptions"]), 2)
+            elif slide["kind"] == "alignment":
+                self.assertLessEqual(len(slide["items"]), 3)
+            elif slide["kind"] in {"objectives", "characters"}:
+                self.assertLessEqual(len(slide["items"]), 2)
         with TemporaryDirectory() as directory:
             original_export_dir = pptx_export_service.settings.export_dir
             try:
@@ -495,6 +512,12 @@ class GenerationReliabilityTests(unittest.TestCase):
                 self.assertGreater(len(deck.slides), 20)
                 self.assertEqual(round(deck.slide_width / deck.slide_height, 2), 1.78)
                 self.assertTrue(any(shape.has_text_frame for slide in deck.slides for shape in slide.shapes))
+                for slide in deck.slides:
+                    for shape in slide.shapes:
+                        self.assertGreaterEqual(shape.left, 0)
+                        self.assertGreaterEqual(shape.top, 0)
+                        self.assertLessEqual(shape.left + shape.width, deck.slide_width)
+                        self.assertLessEqual(shape.top + shape.height, deck.slide_height)
             finally:
                 pptx_export_service.settings.export_dir = original_export_dir
 

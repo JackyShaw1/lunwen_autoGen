@@ -159,7 +159,7 @@ export async function fetchLiveProgress(caseId: string) {
 
 export type ExportFormat = 'docx' | 'pdf' | 'pptx'
 export interface PptOptions {
-  theme: 'academic' | 'modern' | 'minimal'
+  theme: 'academic' | 'modern' | 'minimal' | 'executive' | 'vibrant'
   density: 'concise' | 'standard' | 'detailed'
   audience: 'student' | 'teacher'
   mode: 'lecture' | 'workshop' | 'visual'

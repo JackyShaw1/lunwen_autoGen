@@ -10,7 +10,7 @@ from typing import Any
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
-from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 from app.config import settings
@@ -19,20 +19,43 @@ from app.services.material_service import get_cached_material_image, resolve_pac
 
 THEMES = {
     "academic": {
+        "style": "academic",
         "primary": "312E81", "accent": "4F46E5", "soft": "EEF2FF",
         "background": "F8FAFC", "surface": "FFFFFF", "text": "172033", "muted": "64748B",
         "accent2": "06B6D4", "success": "059669", "warning": "D97706", "danger": "DC2626",
     },
     "modern": {
+        "style": "modern",
         "primary": "0F3D56", "accent": "0D9488", "soft": "CCFBF1",
         "background": "F6FAFA", "surface": "FFFFFF", "text": "132A35", "muted": "607580",
         "accent2": "0284C7", "success": "16A34A", "warning": "EA580C", "danger": "DC2626",
     },
     "minimal": {
+        "style": "editorial",
         "primary": "111827", "accent": "D97706", "soft": "FEF3C7",
         "background": "FAFAF9", "surface": "FFFFFF", "text": "1C1917", "muted": "78716C",
         "accent2": "0F766E", "success": "15803D", "warning": "D97706", "danger": "B91C1C",
     },
+    "executive": {
+        "style": "executive",
+        "primary": "0B1F3A", "accent": "C08A2D", "soft": "F4E8CE",
+        "background": "F5F7FA", "surface": "FFFFFF", "text": "162338", "muted": "667085",
+        "accent2": "2E6F95", "success": "16866A", "warning": "C76B20", "danger": "C23B4A",
+    },
+    "vibrant": {
+        "style": "vibrant",
+        "primary": "3B185F", "accent": "7C3AED", "soft": "F3E8FF",
+        "background": "FFF9FC", "surface": "FFFFFF", "text": "24132F", "muted": "75657F",
+        "accent2": "E85D75", "success": "079669", "warning": "E07A1F", "danger": "D9365B",
+    },
+}
+
+THEME_NAMES = {
+    "academic": "学术靛蓝",
+    "modern": "现代青绿",
+    "minimal": "极简暖灰",
+    "executive": "高管深蓝",
+    "vibrant": "活力紫红",
 }
 
 DENSITY = {
@@ -50,7 +73,10 @@ def _clean_text(value: Any) -> str:
 def _split_sentences(text: str) -> list[str]:
     normalized = str(text or "").replace("\r\n", "\n").strip()
     parts = re.split(r"(?<=[。！？；])\s*|\n+", normalized)
-    return [_clean_text(part) for part in parts if _clean_text(part)]
+    return [
+        cleaned for part in parts
+        if (cleaned := _clean_text(part)) and re.sub(r"[\W_]+", "", cleaned)
+    ]
 
 
 def _fit_segment(sentence: str, max_chars: int) -> list[str]:
@@ -83,6 +109,43 @@ def _content_pages(text: str, density: str, max_slides: int | None = None) -> li
             kept[-1][-1] = kept[-1][-1].rstrip("。…") + "……（其余细节请结合案例原文阅读）"
         return kept
     return pages or [["暂无内容"]]
+
+
+def _paginate_items(
+    items: list[Any],
+    *,
+    max_items: int,
+    max_chars: int,
+    text_getter,
+) -> list[list[Any]]:
+    """按项目数和文字量双重分页，杜绝固定行高硬塞长内容。"""
+    pages: list[list[Any]] = []
+    current: list[Any] = []
+    current_chars = 0
+    for item in items:
+        weight = max(len(_clean_text(text_getter(item))), 1)
+        if current and (len(current) >= max_items or current_chars + weight > max_chars):
+            pages.append(current)
+            current = []
+            current_chars = 0
+        current.append(item)
+        current_chars += weight
+    if current:
+        pages.append(current)
+    return pages or [[]]
+
+
+def _decision_pages(text: str, density: str) -> list[list[str]]:
+    segments: list[str] = []
+    segment_limit = {"concise": 58, "standard": 68, "detailed": 76}[density]
+    for sentence in _split_sentences(text):
+        segments.extend(_fit_segment(sentence, segment_limit))
+    return _paginate_items(
+        segments,
+        max_items=2,
+        max_chars={"concise": 112, "standard": 128, "detailed": 145}[density],
+        text_getter=lambda item: item,
+    )
 
 
 def _speaker_note(title: str, purpose: str, prompts: list[str] | None = None, minutes: int = 3) -> str:
@@ -127,8 +190,8 @@ def _design_metrics(slides: list[dict[str, Any]]) -> dict[str, Any]:
         "visual_pages": visual_pages,
         "activity_pages": activity_pages,
         "appendix_pages": appendix_pages,
-        "quality_label": "智能叙事排版",
-        "quality_summary": "已按课堂节奏重组，采用图片画廊、方法路径、决策任务与紧凑资源附录。",
+        "quality_label": "自适应课堂排版",
+        "quality_summary": "长内容会按可读字量自动续页，并在导出前执行文字密度与画布边界检查。",
     }
 
 
@@ -140,9 +203,9 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
     audience = options.get("audience", "teacher")
     if audience not in {"student", "teacher"}:
         audience = "teacher"
-    theme = options.get("theme", "academic")
+    theme = options.get("theme", "executive")
     if theme not in THEMES:
-        theme = "academic"
+        theme = "executive"
     mode = options.get("mode", "lecture")
     if mode not in {"lecture", "workshop", "visual"}:
         mode = "lecture"
@@ -193,12 +256,25 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
         "notes": _speaker_note("案例一览", "快速建立学习边界和任务规模。", ["确认学生具备必要先修知识。"], 2),
     })
     if objectives:
-        slides.append({
-            "kind": "objectives", "section": "课程导入", "title": "从识别到决策：本课学习目标",
-            "items": objectives,
-            "levels": [_clean_text(item.get("level")) for item in package.get("learning_objectives") or []],
-            "notes": _speaker_note("学习目标", "让学生知道课堂结束时需要交付什么能力。", objectives, 3),
-        })
+        objective_pages = _paginate_items(
+            objectives,
+            max_items=2,
+            max_chars=260,
+            text_getter=lambda item: item,
+        )
+        objective_levels = [_clean_text(item.get("level")) for item in package.get("learning_objectives") or []]
+        objective_offset = 0
+        for page_index, page_items in enumerate(objective_pages, 1):
+            page_levels = objective_levels[objective_offset : objective_offset + len(page_items)]
+            objective_offset += len(page_items)
+            slides.append({
+                "kind": "objectives", "section": "课程导入",
+                "title": "从识别到决策：本课学习目标" if page_index == 1 else f"本课学习目标 · {page_index}",
+                "items": page_items,
+                "levels": page_levels,
+                "start_number": objective_offset - len(page_items) + 1,
+                "notes": _speaker_note("学习目标", "让学生知道课堂结束时需要交付什么能力。", page_items, 3),
+            })
 
     knowledge_anchors = [str(item) for item in teacher_requirements.get("knowledge_anchors") or [] if str(item).strip()]
     if knowledge_anchors:
@@ -235,11 +311,19 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
 
     characters = body.get("characters") or []
     if characters:
-        slides.append({
-            "kind": "characters", "section": "案例情境", "title": "谁在影响决策？",
-            "items": characters[:6],
-            "notes": _speaker_note("关键角色", "识别正式权力、专业判断和一线信息之间的张力。", ["请学生先复述立场，不急于评价人物。"], 4),
-        })
+        for page_index, page_items in enumerate(
+            _paginate_items(
+                characters[:8], max_items=2, max_chars=400,
+                text_getter=lambda item: " ".join(str(item.get(key) or "") for key in ("name", "role", "stance")),
+            ),
+            1,
+        ):
+            slides.append({
+                "kind": "characters", "section": "案例情境",
+                "title": "谁在影响决策？" if page_index == 1 else f"谁在影响决策？ · {page_index}",
+                "items": page_items,
+                "notes": _speaker_note("关键角色", "识别正式权力、专业判断和一线信息之间的张力。", ["请学生先复述立场，不急于评价人物。"], 4),
+            })
 
     narrative_pages = _content_pages(body.get("narrative", ""), density, DENSITY[density]["narrative_slides"])
     phase_names = ["情境建立", "冲突浮现", "证据交锋", "约束升级", "决策临界", "影响扩散", "方案博弈", "行动窗口"]
@@ -256,23 +340,32 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
 
     if body.get("decision_point"):
         slides.append(_section_slide("站到决策者的位置", "03", "没有完美方案，只有可解释的取舍"))
-        slides.append({
-            "kind": "decision", "section": "课堂决策", "title": "关键决策点",
-            "content": _clean_text(body.get("decision_point")),
-            "criteria": ["价值与目标", "证据充分性", "风险可控性", "执行可行性"],
-            "notes": _speaker_note("关键决策点", "冻结案例信息，让学生独立形成初步立场。", ["先个人写下选择与一条证据，再进入小组讨论。"], 5),
-        })
+        for page_index, page_items in enumerate(_decision_pages(body.get("decision_point"), density), 1):
+            slides.append({
+                "kind": "decision", "section": "课堂决策",
+                "title": "关键决策点" if page_index == 1 else f"关键决策点 · {page_index}",
+                "items": page_items,
+                "criteria": ["价值与目标", "证据充分性", "风险可控性", "执行可行性"],
+                "notes": _speaker_note("关键决策点", "冻结案例信息，让学生独立形成初步立场。", ["先个人写下选择与一条证据，再进入小组讨论。"], 5),
+            })
 
     slides.append(_section_slide("研讨、辩论与复盘", "04", "用证据挑战直觉，用反馈修正方案"))
-    question_page_size = 2 if mode == "workshop" else DENSITY[density]["questions"]
-    for index in range(0, len(questions), question_page_size):
+    question_pages = _paginate_items(
+        questions,
+        max_items=2,
+        max_chars={"concise": 250, "standard": 290, "detailed": 320}[density],
+        text_getter=lambda item: f"{item.get('question', '')} {item.get('teaching_intent', '') if audience == 'teacher' else ''}",
+    )
+    question_offset = 0
+    for page_index, questions_page in enumerate(question_pages, 1):
         page_questions = [
-            {**question, "_number": index + offset + 1}
-            for offset, question in enumerate(questions[index : index + question_page_size])
+            {**question, "_number": question_offset + offset + 1}
+            for offset, question in enumerate(questions_page)
         ]
+        question_offset += len(questions_page)
         slides.append({
             "kind": "questions", "section": "课堂研讨",
-            "title": "课堂讨论" if index == 0 else f"课堂讨论 · {index // question_page_size + 1}",
+            "title": "课堂讨论" if page_index == 1 else f"课堂讨论 · {page_index}",
             "items": page_questions,
             "show_intent": audience == "teacher",
             "activity": "小组研讨 6 分钟 → 代表陈述 2 分钟 → 交叉质询" if mode == "workshop" else "先独立判断，再用案例证据回应",
@@ -288,19 +381,38 @@ def build_ppt_outline(package: dict[str, Any], options: dict[str, Any] | None = 
                 "notes": _speaker_note("授课流程", "帮助教师控制课堂节奏。", [guide.get("teaching_flow", "")], 2),
             })
         if guide.get("key_points") or guide.get("common_misconceptions"):
-            slides.append({
-                "kind": "teaching_tips", "section": "教学实施", "title": "要点与误区：教师观察清单",
-                "key_points": guide.get("key_points") or [], "misconceptions": guide.get("common_misconceptions") or [],
-                "teacher_only": True,
-                "notes": _speaker_note("教学提示", "在讨论过程中观察学生是否抓住机制而非表象。", [*[f"要点：{x}" for x in guide.get("key_points") or []], *[f"误区：{x}" for x in guide.get("common_misconceptions") or []]], 3),
-            })
+            key_pages = _paginate_items(
+                guide.get("key_points") or [], max_items=2, max_chars=300, text_getter=lambda item: item,
+            )
+            misconception_pages = _paginate_items(
+                guide.get("common_misconceptions") or [], max_items=2, max_chars=300, text_getter=lambda item: item,
+            )
+            tips_page_count = max(len(key_pages), len(misconception_pages))
+            for page_index in range(tips_page_count):
+                page_keys = key_pages[page_index] if page_index < len(key_pages) else []
+                page_misconceptions = misconception_pages[page_index] if page_index < len(misconception_pages) else []
+                slides.append({
+                    "kind": "teaching_tips", "section": "教学实施",
+                    "title": "要点与误区：教师观察清单" if page_index == 0 else f"教师观察清单 · {page_index + 1}",
+                    "key_points": page_keys, "misconceptions": page_misconceptions,
+                    "teacher_only": True,
+                    "notes": _speaker_note("教学提示", "在讨论过程中观察学生是否抓住机制而非表象。", [*[f"要点：{x}" for x in page_keys], *[f"误区：{x}" for x in page_misconceptions]], 3),
+                })
         matrix = package.get("alignment_matrix") or []
         if matrix:
-            slides.append({
-                "kind": "alignment", "section": "教学实施", "title": "目标—活动—评价闭环",
-                "items": matrix[:6], "teacher_only": True,
-                "notes": _speaker_note("教学目标对齐", "确认每项学习目标都有活动与评价证据。", [], 2),
-            })
+            for page_index, page_items in enumerate(
+                _paginate_items(
+                    matrix[:8], max_items=3, max_chars=620,
+                    text_getter=lambda item: " ".join(str(item.get(key) or "") for key in ("objective_id", "case_section", "activity", "assessment")),
+                ),
+                1,
+            ):
+                slides.append({
+                    "kind": "alignment", "section": "教学实施",
+                    "title": "目标—活动—评价闭环" if page_index == 1 else f"目标—活动—评价闭环 · {page_index}",
+                    "items": page_items, "teacher_only": True,
+                    "notes": _speaker_note("教学目标对齐", "确认每项学习目标都有活动与评价证据。", [], 2),
+                })
 
     evidence_sources = package.get("evidence_sources") or []
     for index in range(0, len(evidence_sources), 5):
@@ -376,6 +488,9 @@ def _textbox(slide, text: str, x: float, y: float, w: float, h: float, *, size: 
     frame = box.text_frame
     frame.clear()
     frame.word_wrap = True
+    # WPS、PowerPoint 与 LibreOffice 对“溢出时自动缩小”的实现不一致，
+    # 甚至可能反向扩张文本框。内容已在大纲阶段分页，这里固定文本框边界。
+    frame.auto_size = MSO_AUTO_SIZE.NONE
     frame.margin_left = frame.margin_right = Inches(0.05)
     frame.margin_top = frame.margin_bottom = Inches(0.03)
     frame.vertical_anchor = valign
@@ -388,6 +503,16 @@ def _textbox(slide, text: str, x: float, y: float, w: float, h: float, *, size: 
     run.font.bold = bold
     run.font.color.rgb = _rgb(color)
     return box
+
+
+def _fit_font_size(text: Any, w: float, h: float, maximum: int, minimum: int = 10) -> int:
+    """按中文全角字符估算可读字号；分页负责控量，此处只做最后适配。"""
+    length = max(len(_clean_text(text)), 1)
+    for size in range(maximum, minimum - 1, -1):
+        capacity = w * h * 72 * 72 / max(size * size * 1.35, 1)
+        if capacity >= length:
+            return size
+    return minimum
 
 
 def _add_notes(slide, text: str | None) -> None:
@@ -413,17 +538,49 @@ def _add_image_cover(slide, image_path: str | Path, x: float, y: float, w: float
     return picture
 
 
+def _validate_slide_bounds(prs: Presentation) -> None:
+    """发布门禁：任何可见图形都不得使用负坐标或超出 16:9 画布。"""
+    errors: list[str] = []
+    tolerance = Inches(0.01)
+    for slide_index, slide in enumerate(prs.slides, 1):
+        for shape_index, shape in enumerate(slide.shapes, 1):
+            if shape.left < -tolerance or shape.top < -tolerance:
+                errors.append(f"第{slide_index}页图形{shape_index}使用负坐标")
+            if shape.left + shape.width > prs.slide_width + tolerance:
+                errors.append(f"第{slide_index}页图形{shape_index}超出右边界")
+            if shape.top + shape.height > prs.slide_height + tolerance:
+                errors.append(f"第{slide_index}页图形{shape_index}超出下边界")
+    if errors:
+        raise ValueError("PPT 版式边界校验失败：" + "；".join(errors[:8]))
+
+
 def _base_slide(prs: Presentation, palette: dict[str, str], title: str, section: str | None, page: int, total: int):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     background = slide.background.fill
     background.solid()
     background.fore_color.rgb = _rgb(palette["background"])
-    _shape(slide, 0, 0, 0.13, 7.5, palette["accent"], radius=False)
-    _shape(slide, 11.9, -0.44, 1.85, 1.85, palette["soft"], radius=True)
-    _shape(slide, 12.47, 0.08, 0.52, 0.52, palette["accent2"], radius=True)
+    style = palette.get("style", "academic")
+    if style == "editorial":
+        _shape(slide, 0.65, 0.38, 1.15, 0.07, palette["accent"], radius=False)
+        _textbox(slide, f"{page:02d}", 11.55, 0.25, 0.9, 0.55, size=30, color=palette["soft"], bold=True, align=PP_ALIGN.RIGHT)
+    elif style == "executive":
+        _shape(slide, 0, 0, 13.333, 1.35, palette["primary"], radius=False)
+        _shape(slide, 0.65, 1.31, 2.15, 0.04, palette["accent"], radius=False)
+    elif style == "vibrant":
+        _shape(slide, 0, 0, 0.16, 7.5, palette["accent2"], radius=False)
+        _shape(slide, 11.98, 0.0, 1.353, 0.95, palette["soft"], radius=True)
+        _shape(slide, 12.47, 0.15, 0.46, 0.46, palette["accent2"], radius=True)
+    else:
+        _shape(slide, 0, 0, 0.13, 7.5, palette["accent"], radius=False)
+        if style == "academic":
+            _shape(slide, 11.98, 0.0, 1.353, 0.95, palette["soft"], radius=True)
+            _shape(slide, 12.47, 0.15, 0.46, 0.46, palette["accent2"], radius=True)
+    header_color = "FFFFFF" if style == "executive" else palette["primary"]
+    section_color = palette["accent"] if style != "executive" else palette["soft"]
     if section:
-        _textbox(slide, section.upper(), 0.65, 0.42, 3.5, 0.3, size=9, color=palette["accent"], bold=True)
-    _textbox(slide, title, 0.65, 0.78, 12.0, 0.6, size=25, color=palette["primary"], bold=True)
+        _textbox(slide, section.upper(), 0.65, 0.34, 3.5, 0.3, size=9, color=section_color, bold=True)
+    title_size = _fit_font_size(title, 11.0, 0.55, 25, 19)
+    _textbox(slide, title, 0.65, 0.72, 11.0, 0.58, size=title_size, color=header_color, bold=True)
     _shape(slide, 0.65, 7.08, 12.0, 0.02, "D9E2E7", radius=False)
     _shape(slide, 0.65, 7.08, 12.0 * page / max(total, 1), 0.02, palette["accent"], radius=False)
     _textbox(slide, "知案 · AI 教学案例课件", 0.65, 7.16, 4.0, 0.2, size=8, color=palette["muted"])
@@ -479,18 +636,21 @@ def _render_objectives(slide, spec: dict[str, Any], palette: dict[str, str]) -> 
     items = spec.get("items") or []
     levels = spec.get("levels") or []
     count = max(len(items), 1)
-    card_w = min(3.72, 11.6 / count - 0.2)
+    gap = 0.28
+    card_w = min(5.65, (11.6 - gap * (count - 1)) / count)
+    start_number = int(spec.get("start_number") or 1)
     for index, item in enumerate(items[:4]):
-        x = 0.72 + index * (card_w + 0.24)
-        y = 2.0 - index * 0.11
-        h = 3.75 + index * 0.11
+        x = 0.72 + index * (card_w + gap)
+        y = 1.72
+        h = 4.55
         _shape(slide, x, y, card_w, h, palette["surface"], line="D9E2E7")
         _shape(slide, x, y, card_w, 0.13, [palette["accent"], palette["accent2"], palette["success"], palette["warning"]][index % 4], radius=False)
-        _textbox(slide, f"0{index + 1}", x + 0.25, y + 0.33, 0.7, 0.48, size=24, color=palette["soft"], bold=True)
+        _textbox(slide, f"{start_number + index:02d}", x + 0.25, y + 0.33, 0.7, 0.48, size=24, color=palette["soft"], bold=True)
         if index < len(levels):
             _shape(slide, x + card_w - 1.0, y + 0.38, 0.72, 0.34, palette["soft"])
             _textbox(slide, levels[index], x + card_w - 0.94, y + 0.45, 0.6, 0.18, size=9, color=palette["accent"], bold=True, align=PP_ALIGN.CENTER)
-        _textbox(slide, item, x + 0.25, y + 1.15, card_w - 0.5, 1.8, size=16, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
+        font_size = _fit_font_size(item, card_w - 0.5, 2.55, 18, 12)
+        _textbox(slide, item, x + 0.25, y + 1.05, card_w - 0.5, 2.65, size=font_size, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
         _textbox(slide, "学习产出", x + 0.25, y + h - 0.62, card_w - 0.5, 0.22, size=9, color=palette["muted"], bold=True)
 
 
@@ -661,20 +821,25 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
             _textbox(slide, "教学引用 · 外部分发前确认授权", 9.38, 5.78, 2.85, 0.3, size=8, color=palette["muted"])
         elif kind == "characters":
             items = spec.get("items") or []
-            cols = 3
-            card_w, card_h = 3.72, 2.12
+            count = max(len(items), 1)
+            gap = 0.24
+            card_w, card_h = (11.82 - gap * (count - 1)) / count, 4.7
             for index, item in enumerate(items):
-                x = 0.7 + (index % cols) * 4.1
-                y = 1.62 + (index // cols) * 2.4
+                x = 0.72 + index * (card_w + gap)
+                y = 1.55
                 _shape(slide, x, y, card_w, card_h, palette["surface"], line="D9E2E7")
                 _shape(slide, x, y, 0.12, card_h, palette["accent"], radius=False)
-                _textbox(slide, _clean_text(item.get("name")), x + 0.3, y + 0.25, 1.55, 0.4, size=18, color=palette["primary"], bold=True)
-                _textbox(slide, _clean_text(item.get("role")), x + 1.88, y + 0.28, 1.5, 0.3, size=10, color=palette["muted"], align=PP_ALIGN.RIGHT)
-                _textbox(slide, _clean_text(item.get("stance")), x + 0.3, y + 0.82, 3.1, 0.95, size=13, color=palette["text"], valign=MSO_ANCHOR.MIDDLE)
+                _textbox(slide, _clean_text(item.get("name")), x + 0.3, y + 0.3, card_w - 0.6, 0.55, size=18, color=palette["primary"], bold=True)
+                _textbox(slide, _clean_text(item.get("role")), x + 0.3, y + 1.02, card_w - 0.6, 0.65, size=10, color=palette["muted"], bold=True)
+                stance = _clean_text(item.get("stance"))
+                stance_size = _fit_font_size(stance, card_w - 0.6, 2.25, 15, 10)
+                _textbox(slide, stance, x + 0.3, y + 1.78, card_w - 0.6, 2.25, size=stance_size, color=palette["text"], valign=MSO_ANCHOR.TOP)
         elif kind == "decision":
             _shape(slide, 0.72, 1.55, 7.55, 4.55, palette["primary"])
             _textbox(slide, "DECISION MOMENT", 1.05, 1.93, 2.6, 0.28, size=10, color=palette["accent2"], bold=True)
-            _textbox(slide, spec.get("content", ""), 1.05, 2.4, 6.85, 2.75, size=21, color="FFFFFF", bold=True, valign=MSO_ANCHOR.MIDDLE)
+            decision_text = "\n\n".join(f"{index + 1}. {_clean_text(item)}" for index, item in enumerate(spec.get("items") or []))
+            decision_size = _fit_font_size(decision_text, 6.85, 2.75, 18, 12)
+            _textbox(slide, decision_text, 1.05, 2.35, 6.85, 2.85, size=decision_size, color="FFFFFF", bold=True, valign=MSO_ANCHOR.MIDDLE)
             _textbox(slide, "先选择，再说明你愿意承担什么风险。", 1.05, 5.44, 6.65, 0.3, size=11, color="DCE7EC")
             _textbox(slide, "决策检验框架", 8.72, 1.62, 3.4, 0.35, size=12, color=palette["muted"], bold=True)
             for index, criterion in enumerate(spec.get("criteria") or []):
@@ -686,12 +851,15 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
             items = spec.get("items") or []
             _shape(slide, 0.72, 1.47, 11.82, 0.52, palette["soft"])
             _textbox(slide, spec.get("activity", "先独立判断，再用案例证据回应"), 0.98, 1.62, 10.9, 0.22, size=10, color=palette["accent"], bold=True)
-            row_h = 1.38 if len(items) >= 3 else 1.82
+            row_h = 1.82 if len(items) >= 2 else 3.82
             for index, item in enumerate(items):
                 y = 2.15 + index * (row_h + 0.12)
                 _shape(slide, 0.72, y, 11.82, row_h, palette["surface"], line="D9E2E7")
                 _textbox(slide, f"Q{item.get('_number', index + 1)}", 1.0, y + 0.3, 0.65, 0.35, size=13, color=palette["accent"], bold=True)
-                _textbox(slide, f"[{item.get('level', '')}] {_clean_text(item.get('question'))}", 1.72, y + 0.18, 10.35, 0.58, size=17, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
+                question_text = f"[{item.get('level', '')}] {_clean_text(item.get('question'))}"
+                question_h = row_h - (0.62 if spec.get("show_intent") and item.get("teaching_intent") else 0.3)
+                question_size = _fit_font_size(question_text, 10.1, question_h, 17, 12)
+                _textbox(slide, question_text, 1.72, y + 0.16, 10.1, question_h, size=question_size, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
                 if spec.get("show_intent") and item.get("teaching_intent"):
                     _textbox(slide, f"教学意图 · {_clean_text(item.get('teaching_intent'))}", 1.72, y + row_h - 0.43, 9.9, 0.24, size=9, color=palette["muted"])
         elif kind == "flow":
@@ -711,10 +879,20 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
             _shape(slide, 6.67, 1.58, 5.87, 4.82, "FEF2F2", line="FECACA")
             _textbox(slide, "✓ 应该抓住", 1.02, 1.93, 4.9, 0.35, size=15, color=palette["success"], bold=True)
             _textbox(slide, "! 需要警惕", 6.98, 1.93, 4.9, 0.35, size=15, color=palette["danger"], bold=True)
-            for index, item in enumerate(spec.get("key_points") or []):
-                _textbox(slide, f"{index + 1:02d}  {_clean_text(item)}", 1.02, 2.62 + index * 0.78, 4.92, 0.55, size=15, color=palette["text"], bold=True)
-            for index, item in enumerate(spec.get("misconceptions") or []):
-                _textbox(slide, f"{index + 1:02d}  {_clean_text(item)}", 6.98, 2.62 + index * 0.78, 5.02, 0.55, size=15, color=palette["text"], bold=True)
+            key_points = spec.get("key_points") or []
+            misconceptions = spec.get("misconceptions") or []
+            for index, item in enumerate(key_points):
+                row_h = 3.45 / max(len(key_points), 1)
+                y = 2.58 + index * row_h
+                text = f"{index + 1:02d}  {_clean_text(item)}"
+                size = _fit_font_size(text, 4.92, row_h - 0.12, 14, 10)
+                _textbox(slide, text, 1.02, y, 4.92, row_h - 0.12, size=size, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
+            for index, item in enumerate(misconceptions):
+                row_h = 3.45 / max(len(misconceptions), 1)
+                y = 2.58 + index * row_h
+                text = f"{index + 1:02d}  {_clean_text(item)}"
+                size = _fit_font_size(text, 5.02, row_h - 0.12, 14, 10)
+                _textbox(slide, text, 6.98, y, 5.02, row_h - 0.12, size=size, color=palette["text"], bold=True, valign=MSO_ANCHOR.MIDDLE)
         elif kind == "alignment":
             rows = spec.get("items") or []
             headers = ["目标", "案例环节", "课堂活动", "评价方式"]
@@ -725,14 +903,16 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
             for col, header in enumerate(headers):
                 _shape(slide, x_positions[col], 1.58, widths[col], 0.55, palette["primary"], radius=False)
                 _textbox(slide, header, x_positions[col] + 0.08, 1.73, widths[col] - 0.16, 0.23, size=10, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER)
-            row_h = min(0.72, 4.35 / max(len(rows), 1))
+            row_h = min(1.36, 4.08 / max(len(rows), 1))
             for row_index, row in enumerate(rows):
                 values = [row.get(key, "") for key in ("objective_id", "case_section", "activity", "assessment")]
                 y = 2.13 + row_index * row_h
                 for col, value in enumerate(values):
                     fill = "FFFFFF" if row_index % 2 == 0 else palette["background"]
                     _shape(slide, x_positions[col], y, widths[col], row_h, fill, radius=False, line="D9E2E7")
-                    _textbox(slide, _clean_text(value), x_positions[col] + 0.08, y + 0.05, widths[col] - 0.16, row_h - 0.1, size=10, color=palette["text"], valign=MSO_ANCHOR.MIDDLE)
+                    clean_value = _clean_text(value)
+                    size = _fit_font_size(clean_value, widths[col] - 0.16, row_h - 0.1, 11, 8)
+                    _textbox(slide, clean_value, x_positions[col] + 0.08, y + 0.05, widths[col] - 0.16, row_h - 0.1, size=size, color=palette["text"], valign=MSO_ANCHOR.MIDDLE)
         elif kind == "sources":
             for index, source in enumerate(spec.get("items") or []):
                 y = 1.48 + index * 1.04
@@ -765,9 +945,11 @@ def export_pptx(package: dict[str, Any], title: str, version: int = 1, options: 
             _add_notes(slide, spec.get("notes"))
 
     clean_title = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "_", outline["title"]).strip(" ._")[:80] or title
-    filename = f"{clean_title}_教学案例课件_V{version}.pptx"
+    theme_name = THEME_NAMES.get(outline["theme"], outline["theme"])
+    filename = f"{clean_title}_教学案例课件_{theme_name}_V{version}.pptx"
     export_dir = Path(settings.export_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
     path = export_dir / filename
+    _validate_slide_bounds(prs)
     prs.save(str(path))
     return str(path)

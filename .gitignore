@@ -34,3 +34,6 @@ dist/
 
 # Logs
 *.log
+
+# Local visual regression artifacts
+.audit/

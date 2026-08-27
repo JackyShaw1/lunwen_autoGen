@@ -136,7 +136,7 @@ class CaseTaskOut(BaseModel):
 
 
 class PptOptions(BaseModel):
-    theme: Literal["academic", "modern", "minimal"] = "academic"
+    theme: Literal["academic", "modern", "minimal", "executive", "vibrant"] = "executive"
     density: Literal["concise", "standard", "detailed"] = "standard"
     audience: Literal["student", "teacher"] = "teacher"
     mode: Literal["lecture", "workshop", "visual"] = "lecture"

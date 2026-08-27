@@ -23,12 +23,14 @@ const THEMES: Array<{ id: PptOptions['theme']; label: string; desc: string; colo
   { id: 'academic', label: '学术靛蓝', desc: '深色章节页 + 靛蓝信息卡', colors: ['bg-indigo-950', 'bg-indigo-600', 'bg-indigo-100'] },
   { id: 'modern', label: '现代青绿', desc: '青绿数据感 + 清爽大留白', colors: ['bg-slate-800', 'bg-teal-600', 'bg-teal-100'] },
   { id: 'minimal', label: '极简暖灰', desc: '编辑部排版 + 暖金色强调', colors: ['bg-stone-900', 'bg-amber-600', 'bg-amber-100'] },
+  { id: 'executive', label: '高管深蓝', desc: '深蓝标题带 + 香槟金重点', colors: ['bg-slate-950', 'bg-amber-500', 'bg-amber-100'] },
+  { id: 'vibrant', label: '活力紫红', desc: '紫红撞色 + 课堂互动氛围', colors: ['bg-purple-950', 'bg-rose-500', 'bg-purple-100'] },
 ]
 
 const DENSITIES: Array<{ id: PptOptions['density']; label: string; desc: string }> = [
-  { id: 'concise', label: '精简', desc: '约 22–28 页，突出关键冲突' },
-  { id: 'standard', label: '标准', desc: '约 28–34 页，兼顾叙事与讨论' },
-  { id: 'detailed', label: '详细', desc: '约 34–42 页，保留更多案例证据' },
+  { id: 'concise', label: '精简', desc: '约 24–32 页，突出关键冲突' },
+  { id: 'standard', label: '标准', desc: '约 30–40 页，兼顾叙事与可读性' },
+  { id: 'detailed', label: '详细', desc: '约 38–50 页，保留更多案例证据' },
 ]
 
 const MODES: Array<{ id: PptOptions['mode']; label: string; desc: string }> = [
@@ -41,7 +43,7 @@ export default function Export() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [format, setFormat] = useState<ExportFormat>('docx')
-  const [pptOptions, setPptOptions] = useState<PptOptions>({ theme: 'academic', density: 'standard', audience: 'teacher', mode: 'lecture', include_speaker_notes: true })
+  const [pptOptions, setPptOptions] = useState<PptOptions>({ theme: 'executive', density: 'standard', audience: 'teacher', mode: 'lecture', include_speaker_notes: true })
   const [outline, setOutline] = useState<PptOutlinePreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -124,7 +126,7 @@ export default function Export() {
 
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><Palette size={16} />视觉主题</div>
-                <div className="grid gap-2 md:grid-cols-3">
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                   {THEMES.map((theme) => <button key={theme.id} type="button" onClick={() => updatePptOption('theme', theme.id)} className={cn('overflow-hidden rounded-xl border text-left transition', pptOptions.theme === theme.id ? 'border-primary bg-indigo-50 ring-1 ring-primary/20' : 'border-slate-200 hover:border-slate-300')}><span className="block bg-white p-2"><span className={cn('relative block aspect-[16/8] overflow-hidden rounded-md', theme.colors[2])}><span className={cn('absolute inset-y-0 left-0 w-[42%]', theme.colors[0])} /><span className={cn('absolute left-[9%] top-[24%] h-1.5 w-[22%] rounded-full', theme.colors[1])} /><span className="absolute left-[9%] top-[41%] h-1 w-[25%] rounded-full bg-white/80" /><span className="absolute left-[50%] top-[18%] h-[64%] w-[41%] rounded bg-white shadow-sm" /><span className={cn('absolute left-[55%] top-[30%] h-1.5 w-[27%] rounded-full', theme.colors[1])} /><span className="absolute left-[55%] top-[47%] h-1 w-[27%] rounded-full bg-slate-200" /><span className="absolute left-[55%] top-[60%] h-1 w-[20%] rounded-full bg-slate-200" /></span></span><span className="block px-3 pb-3 pt-1"><span className="block text-sm font-semibold">{theme.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{theme.desc}</span></span></button>)}
                 </div>
               </div>
@@ -169,7 +171,7 @@ export default function Export() {
           )}
 
           {error && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">文件将按“案例主题_{format === 'pptx' ? '教学案例课件' : '教学案例授课包'}_V版本号”命名，便于归档和区分修改版本。</div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">文件将按“案例主题_{format === 'pptx' ? '教学案例课件_视觉主题' : '教学案例授课包'}_V版本号”命名，便于归档和区分不同样式。</div>
           <Button className="w-full" size="lg" disabled={loading || (format === 'pptx' && previewLoading)} onClick={handleDownload}><Download size={18} />{loading ? `正在生成${formatLabel}…` : `下载${formatLabel}`}</Button>
         </div>
       </div>
